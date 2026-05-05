@@ -25,6 +25,7 @@ export default function TripsPage() {
   });
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [form, setForm] = useState({
     driverId: "",
@@ -158,7 +159,16 @@ export default function TripsPage() {
 
   const remove = async (id: string) => {
     if (!confirm("هل أنت متأكد من حذف هذا السجل؟")) return;
-    await fetch(`/api/trips/${id}`, { method: "DELETE" });
+    setDeletingId(id);
+    const response = await fetch(`/api/trips/${id}`, { method: "DELETE" });
+    setDeletingId(null);
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ message: "فشل حذف السجل" }));
+      setErrorMessage(data.message ?? "فشل حذف السجل");
+      setToast({ type: "error", message: data.message ?? "فشل حذف السجل" });
+      return;
+    }
+    setToast({ type: "success", message: "تم حذف السجل بنجاح" });
     loadAll(currentPage);
   };
 
@@ -359,10 +369,11 @@ export default function TripsPage() {
                   تعديل
                 </button>
                 <button
+                  disabled={deletingId === trip._id}
                   onClick={() => remove(trip._id)}
-                  className="rounded bg-red-600 px-2 py-1 text-xs text-white"
+                  className="rounded bg-red-600 px-2 py-1 text-xs text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  حذف
+                  {deletingId === trip._id ? "جاري الحذف..." : "حذف"}
                 </button>
               </div>
             </div>
@@ -416,10 +427,11 @@ export default function TripsPage() {
                         تعديل
                       </button>
                       <button
+                        disabled={deletingId === trip._id}
                         onClick={() => remove(trip._id)}
-                        className="rounded bg-red-600 px-2 py-1 text-white"
+                        className="rounded bg-red-600 px-2 py-1 text-white disabled:cursor-not-allowed disabled:opacity-60"
                       >
-                        حذف
+                        {deletingId === trip._id ? "جاري الحذف..." : "حذف"}
                       </button>
                     </div>
                   </td>

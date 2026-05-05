@@ -1,9 +1,22 @@
-const CACHE_NAME = "taxi-app-cache-v1";
-const PRECACHE_URLS = ["/", "/dashboard", "/drivers", "/trips", "/reports", "/settings"];
+const CACHE_NAME = "taxi-app-cache-v2";
+const PRECACHE_URLS = ["/", "/manifest.webmanifest", "/icon-192.png", "/icon-512.png", "/favicon.ico"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS)).then(() => self.skipWaiting()),
+    caches
+      .open(CACHE_NAME)
+      .then(async (cache) => {
+        await Promise.all(
+          PRECACHE_URLS.map(async (url) => {
+            try {
+              await cache.add(url);
+            } catch {
+              // ignore individual precache failures so SW can still install
+            }
+          }),
+        );
+      })
+      .then(() => self.skipWaiting()),
   );
 });
 

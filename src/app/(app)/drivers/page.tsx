@@ -193,6 +193,7 @@ export default function DriversPage() {
                       role: driver.role,
                       notes: driver.notes ?? "",
                     });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className="rounded bg-amber-500 px-2 py-1 text-xs text-white"
                 >
@@ -238,6 +239,7 @@ export default function DriversPage() {
                             role: driver.role,
                             notes: driver.notes ?? "",
                           });
+                          window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
                         className="rounded bg-amber-500 px-2 py-1 text-white"
                       >
