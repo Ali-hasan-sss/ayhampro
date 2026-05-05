@@ -1,6 +1,7 @@
 import { calculateCommission } from "@/lib/commission";
 import { connectToDatabase } from "@/lib/db";
 import { getOrCreateSettings } from "@/lib/settings";
+import { hasDuplicateTripForDriverCoordinatorDay } from "@/lib/trip-duplicate";
 import { Trip } from "@/models/Trip";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -26,6 +27,23 @@ export async function PUT(
     return NextResponse.json({ message: "بيانات غير صحيحة" }, { status: 400 });
   }
 
+  const { id } = await params;
+  const duplicate = await hasDuplicateTripForDriverCoordinatorDay({
+    driverId: parsed.data.driverId,
+    coordinatorId: parsed.data.coordinatorId,
+    dateInput: parsed.data.date,
+    excludeTripId: id,
+  });
+  if (duplicate) {
+    return NextResponse.json(
+      {
+        message:
+          "يوجد بالفعل طلب لنفس السائق في هذا اليوم مع نفس المنسق، لا يمكن حفظ هذا التعديل.",
+      },
+      { status: 409 },
+    );
+  }
+
   const settings = await getOrCreateSettings();
   const grossCommission = calculateCommission(
     settings.commissionType,
@@ -34,7 +52,6 @@ export async function PUT(
     parsed.data.totalAmount,
   );
   const commission = Math.max(0, Number((grossCommission - parsed.data.discount).toFixed(2)));
-  const { id } = await params;
 
   const updated = await Trip.findByIdAndUpdate(
     id,
