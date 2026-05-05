@@ -77,3 +77,23 @@ export async function POST(request: Request) {
 
   return NextResponse.json(created, { status: 201 });
 }
+
+export async function DELETE(request: Request) {
+  await connectToDatabase();
+  const { searchParams } = new URL(request.url);
+  const date = searchParams.get("date");
+  if (!date) {
+    return NextResponse.json({ message: "تاريخ الحذف مطلوب" }, { status: 400 });
+  }
+
+  const start = new Date(date);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+
+  const result = await Trip.deleteMany({
+    date: { $gte: start, $lt: end },
+  });
+
+  return NextResponse.json({ success: true, deletedCount: result.deletedCount });
+}

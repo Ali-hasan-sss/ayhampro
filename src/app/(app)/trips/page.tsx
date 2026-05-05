@@ -157,6 +157,7 @@ export default function TripsPage() {
   };
 
   const remove = async (id: string) => {
+    if (!confirm("هل أنت متأكد من حذف هذا السجل؟")) return;
     await fetch(`/api/trips/${id}`, { method: "DELETE" });
     loadAll(currentPage);
   };
@@ -351,6 +352,7 @@ export default function TripsPage() {
                       totalAmount: String(trip.totalAmount),
                       discount: String(trip.discount ?? 0),
                     });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
                   }}
                   className="rounded bg-amber-500 px-2 py-1 text-xs text-white"
                 >
@@ -407,6 +409,7 @@ export default function TripsPage() {
                             totalAmount: String(trip.totalAmount),
                             discount: String(trip.discount ?? 0),
                           });
+                          window.scrollTo({ top: 0, behavior: "smooth" });
                         }}
                         className="rounded bg-amber-500 px-2 py-1 text-white"
                       >
