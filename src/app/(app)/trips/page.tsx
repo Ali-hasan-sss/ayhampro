@@ -1,0 +1,426 @@
+"use client";
+
+import { FormEvent, useEffect, useState } from "react";
+import type { Driver, Trip } from "@/types";
+import { formatCurrency } from "@/lib/format";
+
+const today = new Date().toISOString().slice(0, 10);
+type CommissionType = "percentage" | "fixed";
+
+export default function TripsPage() {
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const pageSize = 20;
+  const [driverQuery, setDriverQuery] = useState("");
+  const [coordinatorQuery, setCoordinatorQuery] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [settings, setSettings] = useState<{
+    commissionType: CommissionType;
+    commissionValue: number;
+  }>({
+    commissionType: "percentage",
+    commissionValue: 0,
+  });
+  const [errorMessage, setErrorMessage] = useState("");
+  const [form, setForm] = useState({
+    driverId: "",
+    coordinatorId: "",
+    date: today,
+    tripsCount: "",
+    totalAmount: "",
+    discount: "",
+  });
+
+  const loadAll = async (targetPage = currentPage) => {
+    const [driversRes, tripsRes, settingsRes] = await Promise.all([
+      fetch("/api/drivers"),
+      fetch(`/api/trips?page=${targetPage}&limit=${pageSize}`),
+      fetch("/api/settings"),
+    ]);
+    if (!driversRes.ok || !tripsRes.ok || !settingsRes.ok) {
+      setErrorMessage("تعذر تحميل البيانات، تحقق من إعدادات السائقين والمنسقين.");
+      return;
+    }
+    const driversData = await driversRes.json();
+    setDrivers(driversData);
+    const tripsData = await tripsRes.json();
+    setTrips(tripsData.items ?? []);
+    setCurrentPage(tripsData.pagination?.page ?? targetPage);
+    setTotalPages(tripsData.pagination?.totalPages ?? 1);
+    const settingsData = await settingsRes.json();
+    setSettings({
+      commissionType: settingsData.commissionType,
+      commissionValue: settingsData.commissionValue,
+    });
+    if (!form.driverId && driversData.length > 0) {
+      const firstDriver = driversData.find((d: Driver) => d.role === "driver")?._id ?? "";
+      const firstCoordinator =
+        driversData.find((d: Driver) => d.role === "coordinator")?._id ?? "";
+      setForm((p) => ({ ...p, driverId: firstDriver, coordinatorId: firstCoordinator }));
+    }
+  };
+
+  useEffect(() => {
+    void Promise.all([
+      fetch("/api/drivers"),
+      fetch(`/api/trips?page=1&limit=${pageSize}`),
+      fetch("/api/settings"),
+    ]).then(
+      async ([driversRes, tripsRes, settingsRes]) => {
+        if (!driversRes.ok || !tripsRes.ok || !settingsRes.ok) {
+          setErrorMessage("تعذر تحميل البيانات الأولية.");
+          return;
+        }
+        const driversData = await driversRes.json();
+        setDrivers(driversData);
+        const tripsData = await tripsRes.json();
+        setTrips(tripsData.items ?? []);
+        setCurrentPage(tripsData.pagination?.page ?? 1);
+        setTotalPages(tripsData.pagination?.totalPages ?? 1);
+        const settingsData = await settingsRes.json();
+        setSettings({
+          commissionType: settingsData.commissionType,
+          commissionValue: settingsData.commissionValue,
+        });
+        setForm((p) => {
+          if (driversData.length === 0) return p;
+          const firstDriver = driversData.find((d: Driver) => d.role === "driver")?._id ?? "";
+          const firstCoordinator =
+            driversData.find((d: Driver) => d.role === "coordinator")?._id ?? "";
+          return {
+            ...p,
+            driverId: p.driverId || firstDriver,
+            coordinatorId: p.coordinatorId || firstCoordinator,
+          };
+        });
+      },
+    );
+  }, []);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setErrorMessage("");
+    if (!form.driverId || !form.coordinatorId) {
+      setErrorMessage("يجب اختيار السائق والمنسق قبل الحفظ.");
+      return;
+    }
+    if (!form.date) {
+      setErrorMessage("يرجى اختيار التاريخ.");
+      return;
+    }
+    if (Number(form.tripsCount || 0) <= 0) {
+      setErrorMessage("عدد الطلبات يجب أن يكون أكبر من صفر.");
+      return;
+    }
+    if (Number(form.totalAmount || 0) <= 0) {
+      setErrorMessage("المبلغ الإجمالي يجب أن يكون أكبر من صفر.");
+      return;
+    }
+    if (Number(form.discount || 0) < 0) {
+      setErrorMessage("قيمة الخصم لا يمكن أن تكون سالبة.");
+      return;
+    }
+    const method = editingId ? "PUT" : "POST";
+    const url = editingId ? `/api/trips/${editingId}` : "/api/trips";
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        tripsCount: Number(form.tripsCount || 0),
+        totalAmount: Number(form.totalAmount || 0),
+        discount: Number(form.discount || 0),
+      }),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({ message: "فشل حفظ السجل" }));
+      setErrorMessage(data.message ?? "فشل حفظ السجل");
+      return;
+    }
+    setEditingId(null);
+    setForm((p) => ({ ...p, tripsCount: "", totalAmount: "", discount: "", date: today }));
+    loadAll(1);
+  };
+
+  const remove = async (id: string) => {
+    await fetch(`/api/trips/${id}`, { method: "DELETE" });
+    loadAll(currentPage);
+  };
+
+  const filteredDrivers = drivers.filter((driver) =>
+    driver.role === "driver" &&
+    `${driver.name} ${driver.phone}`.toLowerCase().includes(driverQuery.toLowerCase()),
+  );
+
+  const filteredCoordinators = drivers.filter(
+    (driver) =>
+      driver.role === "coordinator" &&
+      `${driver.name} ${driver.phone}`.toLowerCase().includes(coordinatorQuery.toLowerCase()),
+  );
+
+  const calculatedCommissionBeforeDiscount =
+    settings.commissionType === "percentage"
+      ? (Number(form.totalAmount || 0) * Number(settings.commissionValue)) / 100
+      : Number(form.tripsCount || 0) * Number(settings.commissionValue);
+  const calculatedCommission = Math.max(
+    0,
+    calculatedCommissionBeforeDiscount - Number(form.discount || 0),
+  );
+
+  return (
+    <section className="space-y-4">
+      <form
+        onSubmit={submit}
+        className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-5 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-900"
+      >
+        <h2 className="mb-3 font-semibold">إدخال طلب يومي</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              بحث السائق
+            </label>
+            <input
+              value={driverQuery}
+              onChange={(e) => setDriverQuery(e.target.value)}
+              placeholder="ابحث بالاسم أو الهاتف"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            />
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              اختيار السائق
+            </label>
+            <select
+              value={form.driverId}
+              onChange={(e) => setForm((p) => ({ ...p, driverId: e.target.value }))}
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            >
+              <option value="" disabled>
+                اختر سائق
+              </option>
+              {filteredDrivers.map((driver) => (
+                <option key={driver._id} value={driver._id}>
+                  {driver.name} - {driver.phone}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              بحث المنسق
+            </label>
+            <input
+              value={coordinatorQuery}
+              onChange={(e) => setCoordinatorQuery(e.target.value)}
+              placeholder="ابحث بالاسم أو الهاتف"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            />
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              اختيار المنسق
+            </label>
+            <select
+              value={form.coordinatorId}
+              onChange={(e) => setForm((p) => ({ ...p, coordinatorId: e.target.value }))}
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            >
+              <option value="" disabled>
+                اختر منسق
+              </option>
+              {filteredCoordinators.map((coordinator) => (
+                <option key={coordinator._id} value={coordinator._id}>
+                  {coordinator.name} - {coordinator.phone}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">التاريخ</label>
+            <input
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              عدد الطلبات
+            </label>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={0}
+              value={form.tripsCount}
+              onChange={(e) => setForm((p) => ({ ...p, tripsCount: e.target.value }))}
+              placeholder="ادخل عدد الطلبات"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            />
+          </div>
+
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              المبلغ اليومي (الإجمالي)
+            </label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              value={form.totalAmount}
+              onChange={(e) => setForm((p) => ({ ...p, totalAmount: e.target.value }))}
+              placeholder="ادخل المبلغ الإجمالي اليومي"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            />
+          </div>
+          <div className="space-y-2 sm:col-span-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              قيمة الخصم (اختياري)
+            </label>
+            <input
+              type="number"
+              inputMode="decimal"
+              min={0}
+              value={form.discount}
+              onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
+              placeholder="أدخل قيمة الخصم إن وجدت"
+              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+            />
+          </div>
+        </div>
+        <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+          العمولة اليومية بعد الخصم (محسوبة تلقائيًا من الإعدادات):{" "}
+          <span className="font-semibold">{formatCurrency(calculatedCommission)}</span>
+        </div>
+        {errorMessage ? <p className="mt-2 text-sm text-red-600">{errorMessage}</p> : null}
+        <button className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white">حفظ</button>
+      </form>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="space-y-2 md:hidden">
+          {trips.map((trip) => (
+            <div
+              key={trip._id}
+              className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50"
+            >
+              <p className="font-semibold">{trip.driverId?.name ?? "-"}</p>
+              <p className="text-sm">المنسق: {trip.coordinatorId?.name ?? "-"}</p>
+              <p className="text-sm">{new Date(trip.date).toLocaleDateString("ar-SA")}</p>
+              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                <p>الطلبات: {trip.tripsCount}</p>
+                <p>المبلغ: {formatCurrency(trip.totalAmount)}</p>
+                <p>الخصم: {formatCurrency(trip.discount ?? 0)}</p>
+                <p>العمولة: {formatCurrency(trip.commission)}</p>
+              </div>
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => {
+                    setEditingId(trip._id);
+                    setForm({
+                      driverId: trip.driverId?._id,
+                      coordinatorId: trip.coordinatorId?._id,
+                      date: new Date(trip.date).toISOString().slice(0, 10),
+                      tripsCount: String(trip.tripsCount),
+                      totalAmount: String(trip.totalAmount),
+                      discount: String(trip.discount ?? 0),
+                    });
+                  }}
+                  className="rounded bg-amber-500 px-2 py-1 text-xs text-white"
+                >
+                  تعديل
+                </button>
+                <button
+                  onClick={() => remove(trip._id)}
+                  className="rounded bg-red-600 px-2 py-1 text-xs text-white"
+                >
+                  حذف
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="min-w-full border-separate border-spacing-y-2 text-sm">
+            <thead>
+              <tr className="text-slate-600 dark:text-slate-300">
+                <th className="px-4 py-3 text-right">السائق</th>
+                <th className="px-4 py-3 text-right">المنسق</th>
+                <th className="px-4 py-3 text-right">التاريخ</th>
+                <th className="px-4 py-3 text-right">الطلبات</th>
+                <th className="px-4 py-3 text-right">المبلغ</th>
+                <th className="px-4 py-3 text-right">الخصم</th>
+                <th className="px-4 py-3 text-right">العمولة</th>
+                <th className="px-4 py-3 text-right">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trips.map((trip) => (
+                <tr
+                  key={trip._id}
+                  className="rounded-xl bg-slate-50 shadow-[0_1px_0_rgba(15,23,42,0.04)] dark:bg-slate-800/50"
+                >
+                  <td className="rounded-r-xl px-4 py-3">{trip.driverId?.name ?? "-"}</td>
+                  <td className="px-4 py-3">{trip.coordinatorId?.name ?? "-"}</td>
+                  <td className="px-4 py-3">{new Date(trip.date).toLocaleDateString("ar-SA")}</td>
+                  <td className="px-4 py-3">{trip.tripsCount}</td>
+                  <td className="px-4 py-3">{formatCurrency(trip.totalAmount)}</td>
+                  <td className="px-4 py-3">{formatCurrency(trip.discount ?? 0)}</td>
+                  <td className="px-4 py-3">{formatCurrency(trip.commission)}</td>
+                  <td className="rounded-l-xl px-4 py-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => {
+                          setEditingId(trip._id);
+                          setForm({
+                            driverId: trip.driverId?._id,
+                            coordinatorId: trip.coordinatorId?._id,
+                            date: new Date(trip.date).toISOString().slice(0, 10),
+                            tripsCount: String(trip.tripsCount),
+                            totalAmount: String(trip.totalAmount),
+                            discount: String(trip.discount ?? 0),
+                          });
+                        }}
+                        className="rounded bg-amber-500 px-2 py-1 text-white"
+                      >
+                        تعديل
+                      </button>
+                      <button
+                        onClick={() => remove(trip._id)}
+                        className="rounded bg-red-600 px-2 py-1 text-white"
+                      >
+                        حذف
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-xs text-slate-500">
+            صفحة {currentPage} من {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => loadAll(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className="rounded bg-slate-200 px-3 py-1 text-sm disabled:opacity-40 dark:bg-slate-700"
+            >
+              السابق
+            </button>
+            <button
+              onClick={() => loadAll(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              className="rounded bg-slate-200 px-3 py-1 text-sm disabled:opacity-40 dark:bg-slate-700"
+            >
+              التالي
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
