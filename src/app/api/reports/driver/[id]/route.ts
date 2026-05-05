@@ -3,22 +3,31 @@ import { Driver } from "@/models/Driver";
 import { Trip } from "@/models/Trip";
 import { NextResponse } from "next/server";
 
+function getStartOfDay(date: Date) {
+  const value = new Date(date);
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
+
+function getEndOfDay(date: Date) {
+  const value = new Date(date);
+  value.setHours(23, 59, 59, 999);
+  return value;
+}
+
 function getRange(period: string) {
   const now = new Date();
-  if (period === "all") return { from: new Date(0), to: now };
-  if (period === "weekly") {
-    const start = new Date(now);
-    start.setDate(now.getDate() - 7);
-    return { from: start, to: now };
+  const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  if (period === "all") return { from: getStartOfDay(new Date(0)), to: getEndOfDay(now) };
+
+  // Business rule: both weekly and monthly represent current full month.
+  if (period === "weekly" || period === "monthly") {
+    return { from: getStartOfDay(startOfCurrentMonth), to: getEndOfDay(endOfCurrentMonth) };
   }
-  if (period === "monthly") {
-    const start = new Date(now);
-    start.setMonth(now.getMonth() - 1);
-    return { from: start, to: now };
-  }
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-  return { from: start, to: now };
+
+  return { from: getStartOfDay(now), to: getEndOfDay(now) };
 }
 
 export async function GET(
@@ -33,8 +42,8 @@ export async function GET(
   const toInput = searchParams.get("to");
 
   const defaultRange = getRange(period);
-  const from = fromInput ? new Date(fromInput) : defaultRange.from;
-  const to = toInput ? new Date(toInput) : defaultRange.to;
+  const from = fromInput ? getStartOfDay(new Date(fromInput)) : defaultRange.from;
+  const to = toInput ? getEndOfDay(new Date(toInput)) : defaultRange.to;
 
   const driver = await Driver.findById(id).select("name phone");
   if (!driver) {

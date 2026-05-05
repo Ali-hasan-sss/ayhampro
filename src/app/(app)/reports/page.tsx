@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import * as XLSX from "xlsx";
+import * as XLSX from "xlsx-js-style";
 import { MetricCard } from "@/components/metric-card";
 import { formatCurrency } from "@/lib/format";
 
@@ -42,6 +42,43 @@ export default function ReportsPage() {
     byCoordinator: [],
   });
 
+  const toDateInputValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const getCurrentMonthBounds = () => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      from: toDateInputValue(monthStart),
+      to: toDateInputValue(monthEnd),
+    };
+  };
+
+  useEffect(() => {
+    if (period === "daily") {
+      const todayValue = toDateInputValue(new Date());
+      setFrom(todayValue);
+      setTo(todayValue);
+      return;
+    }
+
+    if (period === "weekly" || period === "monthly") {
+      const monthBounds = getCurrentMonthBounds();
+      setFrom(monthBounds.from);
+      setTo(monthBounds.to);
+      return;
+    }
+
+    if (period === "all") {
+      setFrom("");
+      setTo("");
+    }
+  }, [period]);
+
   useEffect(() => {
     const params = new URLSearchParams({ period });
     if (from) params.set("from", from);
@@ -58,9 +95,14 @@ export default function ReportsPage() {
   const filteredCoordinators = report.byCoordinator.filter((row) =>
     row.coordinatorName.toLowerCase().includes(coordinatorSearch.toLowerCase()),
   );
-  const todayLabel = new Date().toISOString().slice(0, 10);
-  const effectiveFrom = from || (period === "daily" ? todayLabel : "");
-  const effectiveTo = to || (period === "daily" ? todayLabel : "");
+  const todayLabel = toDateInputValue(new Date());
+  const monthlyBounds = getCurrentMonthBounds();
+  const effectiveFrom =
+    from ||
+    (period === "daily" ? todayLabel : period === "weekly" || period === "monthly" ? monthlyBounds.from : "");
+  const effectiveTo =
+    to ||
+    (period === "daily" ? todayLabel : period === "weekly" || period === "monthly" ? monthlyBounds.to : "");
 
   const exportReportsToExcel = () => {
     const periodLabels: Record<string, string> = {
@@ -74,6 +116,48 @@ export default function ReportsPage() {
     const toLabel = effectiveTo || "غير محدد";
 
     const workbook = XLSX.utils.book_new();
+    const buildBorder = () => ({
+      top: { style: "thin", color: { rgb: "000000" } },
+      bottom: { style: "thin", color: { rgb: "000000" } },
+      left: { style: "thin", color: { rgb: "000000" } },
+      right: { style: "thin", color: { rgb: "000000" } },
+    });
+    const applySheetStyling = (sheet: XLSX.WorkSheet, rowCount: number) => {
+      const range = XLSX.utils.decode_range(sheet["!ref"] ?? "A1:E5");
+      const border = buildBorder();
+      const titleRows = new Set([0, 1, 2]);
+      const headerRow = 4;
+      const firstDataRow = 5;
+      const lastDataRow = firstDataRow + Math.max(rowCount - 1, 0);
+
+      for (let r = range.s.r; r <= range.e.r; r += 1) {
+        for (let c = range.s.c; c <= range.e.c; c += 1) {
+          const cellAddress = XLSX.utils.encode_cell({ r, c });
+          if (!sheet[cellAddress]) {
+            sheet[cellAddress] = { t: "s", v: "" };
+          }
+
+          const cell = sheet[cellAddress] as XLSX.CellObject & { s?: Record<string, unknown> };
+          const style: Record<string, unknown> = {
+            border,
+            alignment: { horizontal: "center", vertical: "center" },
+          };
+
+          if (titleRows.has(r)) {
+            style.font = { bold: true };
+          }
+
+          if (r === headerRow) {
+            style.font = { bold: true };
+            style.fill = { patternType: "solid", fgColor: { rgb: "D9D9D9" } };
+          } else if (r >= firstDataRow && r <= lastDataRow && (r - firstDataRow) % 2 === 0) {
+            style.fill = { patternType: "solid", fgColor: { rgb: "F2F2F2" } };
+          }
+
+          cell.s = style;
+        }
+      }
+    };
 
     const driversRows = report.byDriver.map((row, index) => ({
       "#": index + 1,
@@ -97,6 +181,12 @@ export default function ReportsPage() {
       { wch: 18 },
     ];
     driversSheet["!autofilter"] = { ref: `A5:E${Math.max(driversRows.length + 5, 6)}` };
+    driversSheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    ];
+    applySheetStyling(driversSheet, driversRows.length);
     XLSX.utils.book_append_sheet(workbook, driversSheet, "تقارير الموظفين");
 
     const coordinatorsRows = report.byCoordinator.map((row, index) => ({
@@ -121,9 +211,15 @@ export default function ReportsPage() {
       { wch: 18 },
     ];
     coordinatorsSheet["!autofilter"] = { ref: `A5:E${Math.max(coordinatorsRows.length + 5, 6)}` };
+    coordinatorsSheet["!merges"] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+    ];
+    applySheetStyling(coordinatorsSheet, coordinatorsRows.length);
     XLSX.utils.book_append_sheet(workbook, coordinatorsSheet, "تقارير المنسقين");
 
-    const fileDate = new Date().toISOString().slice(0, 10);
+    const fileDate = toDateInputValue(new Date());
     XLSX.writeFile(workbook, `reports-${period}-${fileDate}.xlsx`);
   };
 

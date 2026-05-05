@@ -48,7 +48,14 @@ export default function DriverReportPage() {
   }
 
   const grossCommission = data.totals.totalCommission + data.totals.totalDiscount;
-  const periodLabel = searchParams.get("period") ?? "مخصص";
+  const periodLabelMap: Record<string, string> = {
+    daily: "يومي",
+    weekly: "أسبوعي",
+    monthly: "شهري",
+    all: "كل الفترات",
+  };
+  const periodKey = searchParams.get("period") ?? "custom";
+  const periodLabel = periodLabelMap[periodKey] ?? "مخصص";
   const fromLabel = searchParams.get("from") ?? "-";
   const toLabel = searchParams.get("to") ?? "-";
   const exportInvoiceImage = async () => {
@@ -181,23 +188,17 @@ export default function DriverReportPage() {
       <div className="fixed -left-[99999px] top-0 opacity-0 pointer-events-none">
         <div
           ref={exportInvoiceRef}
-          style={{ width: 1200 }}
+          style={{ width: 794, minHeight: 1123 }}
           className="bg-white p-8 text-slate-900"
         >
           <div className="rounded-2xl border-2 border-slate-800 p-5">
-            <div className="mb-4 flex items-start justify-between border-b-2 border-slate-300 pb-4">
-              <div>
-                <h2 className="text-3xl font-extrabold tracking-wide">INVOICE</h2>
-                <p className="mt-1 text-sm text-slate-600">فاتورة عمولة سائق</p>
-              </div>
-              <div className="text-left text-sm leading-7">
-                <p>رقم الفاتورة: INV-{data.driver.id.slice(-6).toUpperCase()}</p>
-                <p>تاريخ الإصدار: {new Date().toLocaleDateString("ar-SA")}</p>
-                <p>الفترة: {periodLabel}</p>
-                <p>
-                  من: {fromLabel} - إلى: {toLabel}
-                </p>
-              </div>
+            <div className="mb-4 border-b-2 border-slate-300 pb-4 text-center">
+              <h2 className="text-3xl font-extrabold tracking-wide">INVOICE</h2>
+              <p className="mt-1 text-sm text-slate-600">فاتورة عمولة سائق</p>
+              <p className="mt-1 text-sm text-slate-700">الفترة: {periodLabel}</p>
+              <p className="text-sm text-slate-700">
+                من: {fromLabel} - إلى: {toLabel}
+              </p>
             </div>
 
             <div className="mb-4 grid grid-cols-2 gap-4 rounded-xl bg-slate-50 p-4">
@@ -207,7 +208,9 @@ export default function DriverReportPage() {
                 <p className="text-sm text-slate-700">الهاتف: {data.driver.phone}</p>
               </div>
               <div className="text-sm">
-                <p className="text-xs text-slate-500">ملخص مالي</p>
+                <p>رقم الفاتورة: INV-{data.driver.id.slice(-6).toUpperCase()}</p>
+                <p>تاريخ الإصدار: {new Date().toLocaleDateString("ar-SA")}</p>
+                <p className="mt-1 text-xs text-slate-500">ملخص مالي</p>
                 <p className="mt-1">المبلغ الكلي: {formatCurrency(data.totals.totalAmount)}</p>
                 <p>العمولة قبل التعويض: {formatCurrency(grossCommission)}</p>
                 <p>التعويضات: {formatCurrency(data.totals.totalDiscount)}</p>
@@ -229,8 +232,8 @@ export default function DriverReportPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.daily.map((row) => (
-                  <tr key={`export-${row.date}`}>
+                {data.daily.map((row, index) => (
+                  <tr key={`export-${row.date}`} className={index % 2 === 0 ? "bg-slate-100/80" : "bg-white"}>
                     <td className="border border-slate-300 p-2">
                       {new Date(row.date).toLocaleDateString("ar-SA")}
                     </td>
