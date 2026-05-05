@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useState } from "react";
 export default function SettingsPage() {
   const [form, setForm] = useState({
     commissionType: "percentage",
-    commissionValue: 10,
+    commissionValue: 7,
     companyName: "",
     currentPassword: "",
     newPassword: "",

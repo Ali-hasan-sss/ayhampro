@@ -8,7 +8,7 @@ const settingsSchema = new Schema(
       default: "percentage",
       required: true,
     },
-    commissionValue: { type: Number, default: 10, required: true, min: 0 },
+    commissionValue: { type: Number, default: 7, required: true, min: 0 },
     adminPassword: { type: String, required: true },
     companyName: { type: String, default: "Taxi Company" },
   },

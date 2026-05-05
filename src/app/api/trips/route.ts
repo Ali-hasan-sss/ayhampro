@@ -2,6 +2,7 @@ import { calculateCommission } from "@/lib/commission";
 import { connectToDatabase } from "@/lib/db";
 import { hasDuplicateTripForDriverCoordinatorDay } from "@/lib/trip-duplicate";
 import { getOrCreateSettings } from "@/lib/settings";
+import "@/models/Driver";
 import { Trip } from "@/models/Trip";
 import { NextResponse } from "next/server";
 import { z } from "zod";

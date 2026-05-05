@@ -6,7 +6,7 @@ export async function getOrCreateSettings() {
   if (!settings) {
     settings = await Settings.create({
       commissionType: "percentage",
-      commissionValue: 10,
+      commissionValue: 7,
       adminPassword: await hashPassword("admin123"),
       companyName: "Taxi Company",
     });
