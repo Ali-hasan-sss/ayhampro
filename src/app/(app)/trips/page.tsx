@@ -24,6 +24,8 @@ export default function TripsPage() {
     commissionValue: 0,
   });
   const [errorMessage, setErrorMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [form, setForm] = useState({
     driverId: "",
     coordinatorId: "",
@@ -33,6 +35,12 @@ export default function TripsPage() {
     discount: "",
   });
 
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
   const loadAll = async (targetPage = currentPage) => {
     const [driversRes, tripsRes, settingsRes] = await Promise.all([
       fetch("/api/drivers"),
@@ -40,7 +48,7 @@ export default function TripsPage() {
       fetch("/api/settings"),
     ]);
     if (!driversRes.ok || !tripsRes.ok || !settingsRes.ok) {
-      setErrorMessage("تعذر تحميل البيانات، تحقق من إعدادات السائقين والمنسقين.");
+      setErrorMessage("تعذر تحميل البيانات، تحقق من إعدادات الموظفين والمنسقين.");
       return;
     }
     const driversData = await driversRes.json();
@@ -119,11 +127,12 @@ export default function TripsPage() {
       return;
     }
     if (Number(form.discount || 0) < 0) {
-      setErrorMessage("قيمة الخصم لا يمكن أن تكون سالبة.");
+      setErrorMessage("قيمة التعويض لا يمكن أن تكون سالبة.");
       return;
     }
     const method = editingId ? "PUT" : "POST";
     const url = editingId ? `/api/trips/${editingId}` : "/api/trips";
+    setSubmitting(true);
     const response = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
@@ -134,13 +143,16 @@ export default function TripsPage() {
         discount: Number(form.discount || 0),
       }),
     });
+    setSubmitting(false);
     if (!response.ok) {
       const data = await response.json().catch(() => ({ message: "فشل حفظ السجل" }));
       setErrorMessage(data.message ?? "فشل حفظ السجل");
+      setToast({ type: "error", message: data.message ?? "فشل حفظ السجل" });
       return;
     }
     setEditingId(null);
     setForm((p) => ({ ...p, tripsCount: "", totalAmount: "", discount: "", date: today }));
+    setToast({ type: "success", message: editingId ? "تم تعديل السجل بنجاح" : "تمت إضافة السجل بنجاح" });
     loadAll(1);
   };
 
@@ -276,7 +288,7 @@ export default function TripsPage() {
           </div>
           <div className="space-y-2 sm:col-span-2">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              قيمة الخصم (اختياري)
+              قيمة التعويض (اختياري)
             </label>
             <input
               type="number"
@@ -284,17 +296,31 @@ export default function TripsPage() {
               min={0}
               value={form.discount}
               onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
-              placeholder="أدخل قيمة الخصم إن وجدت"
+              placeholder="أدخل قيمة التعويض إن وجدت"
               className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
             />
           </div>
         </div>
         <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
-          العمولة اليومية بعد الخصم (محسوبة تلقائيًا من الإعدادات):{" "}
+          العمولة اليومية بعد التعويض (محسوبة تلقائيًا من الإعدادات):{" "}
           <span className="font-semibold">{formatCurrency(calculatedCommission)}</span>
         </div>
         {errorMessage ? <p className="mt-2 text-sm text-red-600">{errorMessage}</p> : null}
-        <button className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white">حفظ</button>
+        {toast ? (
+          <p
+            className={`mt-2 text-sm ${
+              toast.type === "success" ? "text-emerald-600" : "text-red-600"
+            }`}
+          >
+            {toast.message}
+          </p>
+        ) : null}
+        <button
+          disabled={submitting}
+          className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {submitting ? "جاري الحفظ..." : "حفظ"}
+        </button>
       </form>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -310,7 +336,7 @@ export default function TripsPage() {
               <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                 <p>الطلبات: {trip.tripsCount}</p>
                 <p>المبلغ: {formatCurrency(trip.totalAmount)}</p>
-                <p>الخصم: {formatCurrency(trip.discount ?? 0)}</p>
+                <p>التعويض: {formatCurrency(trip.discount ?? 0)}</p>
                 <p>العمولة: {formatCurrency(trip.commission)}</p>
               </div>
               <div className="mt-2 flex gap-2">
@@ -350,7 +376,7 @@ export default function TripsPage() {
                 <th className="px-4 py-3 text-right">التاريخ</th>
                 <th className="px-4 py-3 text-right">الطلبات</th>
                 <th className="px-4 py-3 text-right">المبلغ</th>
-                <th className="px-4 py-3 text-right">الخصم</th>
+                <th className="px-4 py-3 text-right">التعويض</th>
                 <th className="px-4 py-3 text-right">العمولة</th>
                 <th className="px-4 py-3 text-right">إجراءات</th>
               </tr>

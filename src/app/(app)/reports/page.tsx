@@ -79,11 +79,11 @@ export default function ReportsPage() {
       "#": index + 1,
       "اسم السائق": row.driverName,
       "عدد الطلبات": row.tripsCount,
-      "إجمالي الخصومات": Number(row.discount.toFixed(2)),
+      "إجمالي التعويضات": Number(row.discount.toFixed(2)),
       "إجمالي العمولة": Number(row.commission.toFixed(2)),
     }));
     const driversSheet = XLSX.utils.aoa_to_sheet([
-      ["جدول تقارير السائقين"],
+      ["جدول تقارير الموظفين"],
       [`الفترة: ${periodLabel}`],
       [`من: ${fromLabel}    |    إلى: ${toLabel}`],
       [],
@@ -97,13 +97,13 @@ export default function ReportsPage() {
       { wch: 18 },
     ];
     driversSheet["!autofilter"] = { ref: `A5:E${Math.max(driversRows.length + 5, 6)}` };
-    XLSX.utils.book_append_sheet(workbook, driversSheet, "تقارير السائقين");
+    XLSX.utils.book_append_sheet(workbook, driversSheet, "تقارير الموظفين");
 
     const coordinatorsRows = report.byCoordinator.map((row, index) => ({
       "#": index + 1,
       "اسم المنسق": row.coordinatorName,
       "عدد الطلبات": row.tripsCount,
-      "إجمالي الخصومات": Number(row.discount.toFixed(2)),
+      "إجمالي التعويضات": Number(row.discount.toFixed(2)),
       "إجمالي العمولة": Number(row.commission.toFixed(2)),
     }));
     const coordinatorsSheet = XLSX.utils.aoa_to_sheet([
@@ -183,7 +183,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-3">
         <MetricCard title="إجمالي الطلبات" value={report.totals.totalTrips} />
         <MetricCard
-          title="إجمالي الخصومات"
+          title="إجمالي التعويضات"
           value={formatCurrency(report.totals.totalDiscount)}
         />
         <MetricCard
@@ -211,7 +211,7 @@ export default function ReportsPage() {
               <p className="font-semibold">{row.driverName}</p>
               <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
                 <p>الطلبات: {row.tripsCount}</p>
-                <p>الخصومات: {formatCurrency(row.discount)}</p>
+                <p>التعويضات: {formatCurrency(row.discount)}</p>
                 <p className="col-span-2">العمولة: {formatCurrency(row.commission)}</p>
               </div>
               <Link
@@ -230,7 +230,7 @@ export default function ReportsPage() {
               <tr className="border-b border-slate-200 dark:border-slate-700">
                 <th className="p-2 text-right">السائق</th>
                 <th className="p-2 text-right">الطلبات</th>
-                <th className="p-2 text-right">الخصومات</th>
+                <th className="p-2 text-right">التعويضات</th>
                 <th className="p-2 text-right">العمولة</th>
                 <th className="p-2 text-right">تفاصيل</th>
               </tr>
@@ -275,7 +275,7 @@ export default function ReportsPage() {
               <p className="font-semibold">{row.coordinatorName}</p>
               <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
                 <p>الطلبات: {row.tripsCount}</p>
-                <p>الخصومات: {formatCurrency(row.discount)}</p>
+                <p>التعويضات: {formatCurrency(row.discount)}</p>
                 <p className="col-span-2">العمولة: {formatCurrency(row.commission)}</p>
               </div>
             </div>
@@ -288,7 +288,7 @@ export default function ReportsPage() {
               <tr className="border-b border-slate-200 dark:border-slate-700">
                 <th className="p-2 text-right">المنسق</th>
                 <th className="p-2 text-right">الطلبات</th>
-                <th className="p-2 text-right">الخصومات</th>
+                <th className="p-2 text-right">التعويضات</th>
                 <th className="p-2 text-right">العمولة</th>
               </tr>
             </thead>

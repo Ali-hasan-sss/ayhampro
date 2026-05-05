@@ -39,7 +39,7 @@ export default function DashboardPage() {
 
   return (
     <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <MetricCard title="عدد السائقين" value={data.driversCount} />
+      <MetricCard title="عدد الموظفين" value={data.driversCount} />
       <MetricCard title="طلبات اليوم" value={data.todayTrips} />
       <MetricCard title="إيرادات اليوم" value={formatCurrency(data.todayRevenue)} />
       <MetricCard title="عمولة اليوم" value={formatCurrency(data.todayCommission)} />

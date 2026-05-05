@@ -8,10 +8,18 @@ const emptyForm = { name: "", phone: "", role: "driver", notes: "" };
 export default function DriversPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [query, setQuery] = useState("");
-  const [role, setRole] = useState("");
+  const [role, setRole] = useState("driver");
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formError, setFormError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2500);
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   const loadDrivers = async (searchQuery = query, selectedRole = role) => {
     const params = new URLSearchParams();
@@ -42,18 +50,22 @@ export default function DriversPage() {
     }
     const method = editingId ? "PUT" : "POST";
     const url = editingId ? `/api/drivers/${editingId}` : "/api/drivers";
+    setSubmitting(true);
     const response = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...form, name, phone }),
     });
+    setSubmitting(false);
     if (!response.ok) {
       const data = await response.json().catch(() => ({ message: "فشل حفظ السائق" }));
       setFormError(data.message ?? "فشل حفظ السائق");
+      setToast({ type: "error", message: data.message ?? "فشل حفظ السائق" });
       return;
     }
     setForm(emptyForm);
     setEditingId(null);
+    setToast({ type: "success", message: editingId ? "تم تعديل السائق بنجاح" : "تمت إضافة السائق بنجاح" });
     loadDrivers();
   };
 
@@ -102,26 +114,63 @@ export default function DriversPage() {
           />
         </div>
         {formError ? <p className="mt-2 text-sm text-red-600">{formError}</p> : null}
-        <button className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white">حفظ</button>
+        {toast ? (
+          <p
+            className={`mt-2 text-sm ${
+              toast.type === "success" ? "text-emerald-600" : "text-red-600"
+            }`}
+          >
+            {toast.message}
+          </p>
+        ) : null}
+        <button
+          disabled={submitting}
+          className="mt-3 rounded-lg bg-blue-600 px-4 py-2 text-white disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {submitting ? "جاري الحفظ..." : "حفظ"}
+        </button>
       </form>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="mb-3 grid gap-2 sm:grid-cols-2">
+        <div className="mb-3 space-y-2">
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="بحث بالاسم"
             className="rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700"
           />
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="rounded-lg border border-slate-300 px-3 py-2 dark:border-slate-700"
-          >
-            <option value="">الكل</option>
-            <option value="driver">سائق</option>
-            <option value="coordinator">منسق</option>
-          </select>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setRole("driver")}
+              className={`rounded-lg px-3 py-2 text-sm ${
+                role === "driver"
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              }`}
+            >
+              سائقين
+            </button>
+            <button
+              onClick={() => setRole("coordinator")}
+              className={`rounded-lg px-3 py-2 text-sm ${
+                role === "coordinator"
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              }`}
+            >
+              منسقين
+            </button>
+            <button
+              onClick={() => setRole("")}
+              className={`rounded-lg px-3 py-2 text-sm ${
+                role === ""
+                  ? "bg-blue-600 text-white"
+                  : "bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+              }`}
+            >
+              الكل
+            </button>
+          </div>
         </div>
 
         <div className="space-y-2 md:hidden">

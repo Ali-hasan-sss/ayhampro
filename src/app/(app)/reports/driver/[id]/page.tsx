@@ -116,11 +116,11 @@ export default function DriverReportPage() {
             <p className="mt-2 text-2xl font-bold">{data.totals.totalTrips}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">العمولة قبل الخصم</p>
+            <p className="text-sm text-slate-500">العمولة قبل التعويض</p>
             <p className="mt-2 text-2xl font-bold text-blue-600">{formatCurrency(grossCommission)}</p>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-500">إجمالي الخصومات</p>
+            <p className="text-sm text-slate-500">إجمالي التعويضات</p>
             <p className="mt-2 text-2xl font-bold text-amber-600">
               {formatCurrency(data.totals.totalDiscount)}
             </p>
@@ -142,8 +142,8 @@ export default function DriverReportPage() {
                 <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
                   <p>المبلغ: {formatAmount(row.totalAmount)}</p>
                   <p>الطلبات: {row.tripsCount}</p>
-                  <p>قبل الخصم: {formatAmount(row.commission + row.discount)}</p>
-                  <p>الخصم: {formatAmount(row.discount)}</p>
+                  <p>قبل التعويض: {formatAmount(row.commission + row.discount)}</p>
+                  <p>التعويض: {formatAmount(row.discount)}</p>
                   <p className="col-span-2 font-semibold">الصافي: {formatCurrency(row.commission)}</p>
                 </div>
               </div>
@@ -156,8 +156,8 @@ export default function DriverReportPage() {
                   <th className="p-2 text-right">اليوم</th>
                   <th className="p-2 text-right">المبلغ الكلي</th>
                   <th className="p-2 text-right">عدد الطلبات</th>
-                  <th className="p-2 text-right">العمولة قبل الخصم</th>
-                  <th className="p-2 text-right">الخصومات</th>
+                  <th className="p-2 text-right">العمولة قبل التعويض</th>
+                  <th className="p-2 text-right">التعويضات</th>
                   <th className="p-2 text-right">العمولة الصافية</th>
                 </tr>
               </thead>
@@ -209,8 +209,8 @@ export default function DriverReportPage() {
               <div className="text-sm">
                 <p className="text-xs text-slate-500">ملخص مالي</p>
                 <p className="mt-1">المبلغ الكلي: {formatCurrency(data.totals.totalAmount)}</p>
-                <p>العمولة قبل الخصم: {formatCurrency(grossCommission)}</p>
-                <p>الخصومات: {formatCurrency(data.totals.totalDiscount)}</p>
+                <p>العمولة قبل التعويض: {formatCurrency(grossCommission)}</p>
+                <p>التعويضات: {formatCurrency(data.totals.totalDiscount)}</p>
                 <p className="font-bold text-emerald-700">
                   العمولة الصافية: {formatCurrency(data.totals.totalCommission)}
                 </p>
@@ -223,8 +223,8 @@ export default function DriverReportPage() {
                   <th className="border border-slate-300 p-2 text-right">اليوم</th>
                   <th className="border border-slate-300 p-2 text-right">المبلغ الكلي</th>
                   <th className="border border-slate-300 p-2 text-right">عدد الطلبات</th>
-                  <th className="border border-slate-300 p-2 text-right">العمولة قبل الخصم</th>
-                  <th className="border border-slate-300 p-2 text-right">الخصومات</th>
+                  <th className="border border-slate-300 p-2 text-right">العمولة قبل التعويض</th>
+                  <th className="border border-slate-300 p-2 text-right">التعويضات</th>
                   <th className="border border-slate-300 p-2 text-right">العمولة الصافية</th>
                 </tr>
               </thead>

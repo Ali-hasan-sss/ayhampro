@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 
 const links = [
   { href: "/dashboard", label: "لوحة التحكم" },
-  { href: "/drivers", label: "السائقون" },
+  { href: "/drivers", label: "الموظفين" },
   { href: "/trips", label: "الطلبات اليومية" },
   { href: "/reports", label: "التقارير" },
   { href: "/settings", label: "الإعدادات" },
