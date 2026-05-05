@@ -4,7 +4,14 @@ import { FormEvent, useEffect, useState } from "react";
 import type { Driver, Trip } from "@/types";
 import { formatCurrency } from "@/lib/format";
 
-const today = new Date().toISOString().slice(0, 10);
+function getTodayInputValue() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 type CommissionType = "percentage" | "fixed";
 
 export default function TripsPage() {
@@ -30,7 +37,7 @@ export default function TripsPage() {
   const [form, setForm] = useState({
     driverId: "",
     coordinatorId: "",
-    date: today,
+    date: getTodayInputValue(),
     tripsCount: "",
     totalAmount: "",
     discount: "",
@@ -94,12 +101,13 @@ export default function TripsPage() {
           commissionValue: settingsData.commissionValue,
         });
         setForm((p) => {
-          if (driversData.length === 0) return p;
+          if (driversData.length === 0) return { ...p, date: getTodayInputValue() };
           const firstDriver = driversData.find((d: Driver) => d.role === "driver")?._id ?? "";
           const firstCoordinator =
             driversData.find((d: Driver) => d.role === "coordinator")?._id ?? "";
           return {
             ...p,
+            date: getTodayInputValue(),
             driverId: p.driverId || firstDriver,
             coordinatorId: p.coordinatorId || firstCoordinator,
           };
@@ -152,7 +160,12 @@ export default function TripsPage() {
       return;
     }
     setEditingId(null);
-    setForm((p) => ({ ...p, tripsCount: "", totalAmount: "", discount: "", date: today }));
+    setForm((p) => ({
+      ...p,
+      tripsCount: "",
+      totalAmount: "",
+      discount: "",
+    }));
     setToast({ type: "success", message: editingId ? "تم تعديل السجل بنجاح" : "تمت إضافة السجل بنجاح" });
     loadAll(1);
   };
