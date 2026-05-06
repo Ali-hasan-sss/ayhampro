@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Driver, Trip } from "@/types";
 import { formatCurrency, formatGregorianDateAr } from "@/lib/format";
 import { calendarDateKeyFromUtcDate } from "@/lib/trip-calendar-date";
@@ -25,6 +25,8 @@ export default function TripsPage() {
   const [dateFilterValue, setDateFilterValue] = useState(getTodayInputValue());
   const [driverQuery, setDriverQuery] = useState("");
   const [coordinatorQuery, setCoordinatorQuery] = useState("");
+  const [driverOpen, setDriverOpen] = useState(false);
+  const [coordinatorOpen, setCoordinatorOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [settings, setSettings] = useState<{
     commissionType: CommissionType;
@@ -170,6 +172,29 @@ export default function TripsPage() {
       `${driver.name} ${driver.phone}`.toLowerCase().includes(coordinatorQuery.toLowerCase()),
   );
 
+  const driverOptions = useMemo(() => {
+    const selected = drivers.find((d) => d.role === "driver" && d._id === form.driverId);
+    if (!selected) return filteredDrivers;
+    const existsInFiltered = filteredDrivers.some((d) => d._id === selected._id);
+    return existsInFiltered ? filteredDrivers : [selected, ...filteredDrivers];
+  }, [drivers, filteredDrivers, form.driverId]);
+
+  const coordinatorOptions = useMemo(() => {
+    const selected = drivers.find((d) => d.role === "coordinator" && d._id === form.coordinatorId);
+    if (!selected) return filteredCoordinators;
+    const existsInFiltered = filteredCoordinators.some((d) => d._id === selected._id);
+    return existsInFiltered ? filteredCoordinators : [selected, ...filteredCoordinators];
+  }, [drivers, filteredCoordinators, form.coordinatorId]);
+
+  const selectedDriver = useMemo(
+    () => drivers.find((d) => d.role === "driver" && d._id === form.driverId) ?? null,
+    [drivers, form.driverId],
+  );
+  const selectedCoordinator = useMemo(
+    () => drivers.find((d) => d.role === "coordinator" && d._id === form.coordinatorId) ?? null,
+    [drivers, form.coordinatorId],
+  );
+
   const calculatedCommissionBeforeDiscount =
     settings.commissionType === "percentage"
       ? (Number(form.totalAmount || 0) * Number(settings.commissionValue)) / 100
@@ -190,60 +215,96 @@ export default function TripsPage() {
           <div className="grid grid-cols-2 gap-4 sm:col-span-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                بحث السائق
-              </label>
-              <input
-                value={driverQuery}
-                onChange={(e) => setDriverQuery(e.target.value)}
-                placeholder="ابحث بالاسم أو الهاتف"
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-              />
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 اختيار السائق
               </label>
-              <select
-                value={form.driverId}
-                onChange={(e) => setForm((p) => ({ ...p, driverId: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-              >
-                <option value="" disabled>
-                  اختر سائق
-                </option>
-                {filteredDrivers.map((driver) => (
-                  <option key={driver._id} value={driver._id}>
-                    {driver.name} - {driver.phone}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  value={driverQuery}
+                  onFocus={() => setDriverOpen(true)}
+                  onChange={(e) => {
+                    setDriverQuery(e.target.value);
+                    setDriverOpen(true);
+                  }}
+                  placeholder={
+                    selectedDriver
+                      ? `${selectedDriver.name} - ${selectedDriver.phone}`
+                      : "ابحث بالاسم أو الهاتف"
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+                />
+                {driverOpen ? (
+                  <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                    {driverOptions.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-slate-500">لا توجد نتائج</p>
+                    ) : (
+                      driverOptions.map((driver) => (
+                        <button
+                          key={driver._id}
+                          type="button"
+                          onClick={() => {
+                            setForm((p) => ({ ...p, driverId: driver._id }));
+                            setDriverQuery(`${driver.name} ${driver.phone}`.trim());
+                            setDriverOpen(false);
+                          }}
+                          className={`block w-full px-3 py-2 text-right text-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                            form.driverId === driver._id ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                          }`}
+                        >
+                          {driver.name} - {driver.phone}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                بحث المنسق
-              </label>
-              <input
-                value={coordinatorQuery}
-                onChange={(e) => setCoordinatorQuery(e.target.value)}
-                placeholder="ابحث بالاسم أو الهاتف"
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-              />
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 اختيار المنسق
               </label>
-              <select
-                value={form.coordinatorId}
-                onChange={(e) => setForm((p) => ({ ...p, coordinatorId: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-              >
-                <option value="" disabled>
-                  اختر منسق
-                </option>
-                {filteredCoordinators.map((coordinator) => (
-                  <option key={coordinator._id} value={coordinator._id}>
-                    {coordinator.name} - {coordinator.phone}
-                  </option>
-                ))}
-              </select>
+              <div className="relative">
+                <input
+                  value={coordinatorQuery}
+                  onFocus={() => setCoordinatorOpen(true)}
+                  onChange={(e) => {
+                    setCoordinatorQuery(e.target.value);
+                    setCoordinatorOpen(true);
+                  }}
+                  placeholder={
+                    selectedCoordinator
+                      ? `${selectedCoordinator.name} - ${selectedCoordinator.phone}`
+                      : "ابحث بالاسم أو الهاتف"
+                  }
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+                />
+                {coordinatorOpen ? (
+                  <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
+                    {coordinatorOptions.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-slate-500">لا توجد نتائج</p>
+                    ) : (
+                      coordinatorOptions.map((coordinator) => (
+                        <button
+                          key={coordinator._id}
+                          type="button"
+                          onClick={() => {
+                            setForm((p) => ({ ...p, coordinatorId: coordinator._id }));
+                            setCoordinatorQuery(`${coordinator.name} ${coordinator.phone}`.trim());
+                            setCoordinatorOpen(false);
+                          }}
+                          className={`block w-full px-3 py-2 text-right text-sm hover:bg-slate-100 dark:hover:bg-slate-800 ${
+                            form.coordinatorId === coordinator._id
+                              ? "bg-blue-50 dark:bg-blue-900/20"
+                              : ""
+                          }`}
+                        >
+                          {coordinator.name} - {coordinator.phone}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                ) : null}
+              </div>
             </div>
           </div>
 
