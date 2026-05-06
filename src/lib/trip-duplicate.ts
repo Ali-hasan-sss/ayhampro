@@ -1,14 +1,5 @@
+import { getUtcDayBoundsFromTripDateInput } from "@/lib/trip-calendar-date";
 import { Trip } from "@/models/Trip";
-
-export function getUtcCalendarDayBoundsFromDateInput(dateInput: string) {
-  const parsed = new Date(dateInput);
-  const y = parsed.getUTCFullYear();
-  const m = parsed.getUTCMonth();
-  const d = parsed.getUTCDate();
-  const start = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
-  const end = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
-  return { start, end };
-}
 
 export async function hasDuplicateTripForDriverCoordinatorDay(params: {
   driverId: string;
@@ -16,7 +7,7 @@ export async function hasDuplicateTripForDriverCoordinatorDay(params: {
   dateInput: string;
   excludeTripId?: string;
 }) {
-  const { start, end } = getUtcCalendarDayBoundsFromDateInput(params.dateInput);
+  const { start, end } = getUtcDayBoundsFromTripDateInput(params.dateInput);
   const query: Record<string, unknown> = {
     driverId: params.driverId,
     coordinatorId: params.coordinatorId,

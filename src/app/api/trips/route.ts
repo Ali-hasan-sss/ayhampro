@@ -2,6 +2,11 @@ import { calculateCommission } from "@/lib/commission";
 import { connectToDatabase } from "@/lib/db";
 import { hasDuplicateTripForDriverCoordinatorDay } from "@/lib/trip-duplicate";
 import { getOrCreateSettings } from "@/lib/settings";
+import {
+  getUtcDayBoundsFromTripDateInput,
+  parseDateOnlyParts,
+  utcMidnightFromDateOnly,
+} from "@/lib/trip-calendar-date";
 import "@/models/Driver";
 import { Trip } from "@/models/Trip";
 import { NextResponse } from "next/server";
@@ -9,10 +14,14 @@ import { z } from "zod";
 
 const objectIdSchema = z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid ObjectId");
 
+const dateOnlySchema = z
+  .string()
+  .refine((s) => parseDateOnlyParts(s) !== null, "تاريخ غير صالح");
+
 const schema = z.object({
   driverId: objectIdSchema,
   coordinatorId: objectIdSchema,
-  date: z.string(),
+  date: dateOnlySchema,
   tripsCount: z.number().int().min(0),
   totalAmount: z.number().min(0),
   discount: z.number().min(0).optional().default(0),
@@ -33,10 +42,16 @@ export async function GET(request: Request) {
   if (driverId) query.driverId = driverId;
   if (coordinatorId) query.coordinatorId = coordinatorId;
   if (from || to) {
-    query.date = {
-      ...(from ? { $gte: new Date(from) } : {}),
-      ...(to ? { $lte: new Date(to) } : {}),
-    };
+    try {
+      const startBound = from ? getUtcDayBoundsFromTripDateInput(from).start : undefined;
+      const endBound = to ? getUtcDayBoundsFromTripDateInput(to).end : undefined;
+      query.date = {
+        ...(startBound ? { $gte: startBound } : {}),
+        ...(endBound ? { $lte: endBound } : {}),
+      };
+    } catch {
+      return NextResponse.json({ message: "نطاق التاريخ غير صالح" }, { status: 400 });
+    }
   }
 
   const [trips, total] = await Promise.all([
@@ -88,7 +103,7 @@ export async function POST(request: Request) {
 
   const created = await Trip.create({
     ...parsed.data,
-    date: new Date(parsed.data.date),
+    date: utcMidnightFromDateOnly(parsed.data.date),
     commission,
   });
 

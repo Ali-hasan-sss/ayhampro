@@ -163,6 +163,7 @@ export default function ReportsPage() {
       "#": index + 1,
       "اسم السائق": row.driverName,
       "عدد الطلبات": row.tripsCount,
+      "المبلغ الإجمالي": Number(row.totalAmount.toFixed(2)),
       "إجمالي التعويضات": Number(row.discount.toFixed(2)),
       "إجمالي العمولة": Number(row.commission.toFixed(2)),
     }));
@@ -177,14 +178,15 @@ export default function ReportsPage() {
       { wch: 6 },
       { wch: 26 },
       { wch: 14 },
+      { wch: 16 },
       { wch: 18 },
       { wch: 18 },
     ];
-    driversSheet["!autofilter"] = { ref: `A5:E${Math.max(driversRows.length + 5, 6)}` };
+    driversSheet["!autofilter"] = { ref: `A5:F${Math.max(driversRows.length + 5, 6)}` };
     driversSheet["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
     ];
     applySheetStyling(driversSheet, driversRows.length);
     XLSX.utils.book_append_sheet(workbook, driversSheet, "تقارير الموظفين");
@@ -193,6 +195,7 @@ export default function ReportsPage() {
       "#": index + 1,
       "اسم المنسق": row.coordinatorName,
       "عدد الطلبات": row.tripsCount,
+      "المبلغ الإجمالي": Number(row.totalAmount.toFixed(2)),
       "إجمالي التعويضات": Number(row.discount.toFixed(2)),
       "إجمالي العمولة": Number(row.commission.toFixed(2)),
     }));
@@ -207,14 +210,15 @@ export default function ReportsPage() {
       { wch: 6 },
       { wch: 26 },
       { wch: 14 },
+      { wch: 16 },
       { wch: 18 },
       { wch: 18 },
     ];
-    coordinatorsSheet["!autofilter"] = { ref: `A5:E${Math.max(coordinatorsRows.length + 5, 6)}` };
+    coordinatorsSheet["!autofilter"] = { ref: `A5:F${Math.max(coordinatorsRows.length + 5, 6)}` };
     coordinatorsSheet["!merges"] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } },
-      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
-      { s: { r: 2, c: 0 }, e: { r: 2, c: 4 } },
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+      { s: { r: 2, c: 0 }, e: { r: 2, c: 5 } },
     ];
     applySheetStyling(coordinatorsSheet, coordinatorsRows.length);
     XLSX.utils.book_append_sheet(workbook, coordinatorsSheet, "تقارير المنسقين");
@@ -307,6 +311,7 @@ export default function ReportsPage() {
               <p className="font-semibold">{row.driverName}</p>
               <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
                 <p>الطلبات: {row.tripsCount}</p>
+                <p>المبلغ الإجمالي: {formatCurrency(row.totalAmount)}</p>
                 <p>التعويضات: {formatCurrency(row.discount)}</p>
                 <p className="col-span-2">العمولة: {formatCurrency(row.commission)}</p>
               </div>
@@ -326,6 +331,7 @@ export default function ReportsPage() {
               <tr className="border-b border-slate-200 dark:border-slate-700">
                 <th className="p-2 text-right">السائق</th>
                 <th className="p-2 text-right">الطلبات</th>
+                <th className="p-2 text-right">المبلغ الإجمالي</th>
                 <th className="p-2 text-right">التعويضات</th>
                 <th className="p-2 text-right">العمولة</th>
                 <th className="p-2 text-right">تفاصيل</th>
@@ -336,6 +342,7 @@ export default function ReportsPage() {
                 <tr key={row.driverName} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="p-2">{row.driverName}</td>
                   <td className="p-2">{row.tripsCount}</td>
+                  <td className="p-2">{formatCurrency(row.totalAmount)}</td>
                   <td className="p-2">{formatCurrency(row.discount)}</td>
                   <td className="p-2">{formatCurrency(row.commission)}</td>
                   <td className="p-2">
@@ -371,6 +378,7 @@ export default function ReportsPage() {
               <p className="font-semibold">{row.coordinatorName}</p>
               <div className="mt-1 grid grid-cols-2 gap-2 text-sm">
                 <p>الطلبات: {row.tripsCount}</p>
+                <p>المبلغ الإجمالي: {formatCurrency(row.totalAmount)}</p>
                 <p>التعويضات: {formatCurrency(row.discount)}</p>
                 <p className="col-span-2">العمولة: {formatCurrency(row.commission)}</p>
               </div>
@@ -384,6 +392,7 @@ export default function ReportsPage() {
               <tr className="border-b border-slate-200 dark:border-slate-700">
                 <th className="p-2 text-right">المنسق</th>
                 <th className="p-2 text-right">الطلبات</th>
+                <th className="p-2 text-right">المبلغ الإجمالي</th>
                 <th className="p-2 text-right">التعويضات</th>
                 <th className="p-2 text-right">العمولة</th>
               </tr>
@@ -396,6 +405,7 @@ export default function ReportsPage() {
                 >
                   <td className="p-2">{row.coordinatorName}</td>
                   <td className="p-2">{row.tripsCount}</td>
+                  <td className="p-2">{formatCurrency(row.totalAmount)}</td>
                   <td className="p-2">{formatCurrency(row.discount)}</td>
                   <td className="p-2">{formatCurrency(row.commission)}</td>
                 </tr>

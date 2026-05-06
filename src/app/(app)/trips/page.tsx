@@ -2,7 +2,8 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import type { Driver, Trip } from "@/types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatGregorianDateAr } from "@/lib/format";
+import { calendarDateKeyFromUtcDate } from "@/lib/trip-calendar-date";
 
 function getTodayInputValue() {
   const now = new Date();
@@ -19,7 +20,9 @@ export default function TripsPage() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const pageSize = 20;
+  const pageSize = 50;
+  const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
+  const [dateFilterValue, setDateFilterValue] = useState(getTodayInputValue());
   const [driverQuery, setDriverQuery] = useState("");
   const [coordinatorQuery, setCoordinatorQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -50,9 +53,13 @@ export default function TripsPage() {
   }, [toast]);
 
   const loadAll = async (targetPage = currentPage) => {
+    const dayQs =
+      dateFilterEnabled && dateFilterValue
+        ? `&from=${encodeURIComponent(dateFilterValue)}&to=${encodeURIComponent(dateFilterValue)}`
+        : "";
     const [driversRes, tripsRes, settingsRes] = await Promise.all([
       fetch("/api/drivers"),
-      fetch(`/api/trips?page=${targetPage}&limit=${pageSize}`),
+      fetch(`/api/trips?page=${targetPage}&limit=${pageSize}${dayQs}`),
       fetch("/api/settings"),
     ]);
     if (!driversRes.ok || !tripsRes.ok || !settingsRes.ok) {
@@ -70,50 +77,21 @@ export default function TripsPage() {
       commissionType: settingsData.commissionType,
       commissionValue: settingsData.commissionValue,
     });
-    if (!form.driverId && driversData.length > 0) {
+    if (driversData.length > 0) {
       const firstDriver = driversData.find((d: Driver) => d.role === "driver")?._id ?? "";
       const firstCoordinator =
         driversData.find((d: Driver) => d.role === "coordinator")?._id ?? "";
-      setForm((p) => ({ ...p, driverId: firstDriver, coordinatorId: firstCoordinator }));
+      // Important: use latest state to avoid stale-closure overwriting user's current selection.
+      setForm((p) => {
+        if (p.driverId || p.coordinatorId) return p;
+        return { ...p, driverId: firstDriver, coordinatorId: firstCoordinator };
+      });
     }
   };
 
   useEffect(() => {
-    void Promise.all([
-      fetch("/api/drivers"),
-      fetch(`/api/trips?page=1&limit=${pageSize}`),
-      fetch("/api/settings"),
-    ]).then(
-      async ([driversRes, tripsRes, settingsRes]) => {
-        if (!driversRes.ok || !tripsRes.ok || !settingsRes.ok) {
-          setErrorMessage("تعذر تحميل البيانات الأولية.");
-          return;
-        }
-        const driversData = await driversRes.json();
-        setDrivers(driversData);
-        const tripsData = await tripsRes.json();
-        setTrips(tripsData.items ?? []);
-        setCurrentPage(tripsData.pagination?.page ?? 1);
-        setTotalPages(tripsData.pagination?.totalPages ?? 1);
-        const settingsData = await settingsRes.json();
-        setSettings({
-          commissionType: settingsData.commissionType,
-          commissionValue: settingsData.commissionValue,
-        });
-        setForm((p) => {
-          if (driversData.length === 0) return { ...p, date: getTodayInputValue() };
-          const firstDriver = driversData.find((d: Driver) => d.role === "driver")?._id ?? "";
-          const firstCoordinator =
-            driversData.find((d: Driver) => d.role === "coordinator")?._id ?? "";
-          return {
-            ...p,
-            date: getTodayInputValue(),
-            driverId: p.driverId || firstDriver,
-            coordinatorId: p.coordinatorId || firstCoordinator,
-          };
-        });
-      },
-    );
+    void loadAll(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   }, []);
 
   const submit = async (e: FormEvent) => {
@@ -213,116 +191,121 @@ export default function TripsPage() {
       >
         <h2 className="mb-3 font-semibold">إدخال طلب يومي</h2>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              بحث السائق
-            </label>
-            <input
-              value={driverQuery}
-              onChange={(e) => setDriverQuery(e.target.value)}
-              placeholder="ابحث بالاسم أو الهاتف"
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            />
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              اختيار السائق
-            </label>
-            <select
-              value={form.driverId}
-              onChange={(e) => setForm((p) => ({ ...p, driverId: e.target.value }))}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            >
-              <option value="" disabled>
-                اختر سائق
-              </option>
-              {filteredDrivers.map((driver) => (
-                <option key={driver._id} value={driver._id}>
-                  {driver.name} - {driver.phone}
+          <div className="grid grid-cols-2 gap-4 sm:col-span-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                بحث السائق
+              </label>
+              <input
+                value={driverQuery}
+                onChange={(e) => setDriverQuery(e.target.value)}
+                placeholder="ابحث بالاسم أو الهاتف"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              />
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                اختيار السائق
+              </label>
+              <select
+                value={form.driverId}
+                onChange={(e) => setForm((p) => ({ ...p, driverId: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              >
+                <option value="" disabled>
+                  اختر سائق
                 </option>
-              ))}
-            </select>
-          </div>
+                {filteredDrivers.map((driver) => (
+                  <option key={driver._id} value={driver._id}>
+                    {driver.name} - {driver.phone}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              بحث المنسق
-            </label>
-            <input
-              value={coordinatorQuery}
-              onChange={(e) => setCoordinatorQuery(e.target.value)}
-              placeholder="ابحث بالاسم أو الهاتف"
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            />
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              اختيار المنسق
-            </label>
-            <select
-              value={form.coordinatorId}
-              onChange={(e) => setForm((p) => ({ ...p, coordinatorId: e.target.value }))}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            >
-              <option value="" disabled>
-                اختر منسق
-              </option>
-              {filteredCoordinators.map((coordinator) => (
-                <option key={coordinator._id} value={coordinator._id}>
-                  {coordinator.name} - {coordinator.phone}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                بحث المنسق
+              </label>
+              <input
+                value={coordinatorQuery}
+                onChange={(e) => setCoordinatorQuery(e.target.value)}
+                placeholder="ابحث بالاسم أو الهاتف"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              />
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                اختيار المنسق
+              </label>
+              <select
+                value={form.coordinatorId}
+                onChange={(e) => setForm((p) => ({ ...p, coordinatorId: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              >
+                <option value="" disabled>
+                  اختر منسق
                 </option>
-              ))}
-            </select>
+                {filteredCoordinators.map((coordinator) => (
+                  <option key={coordinator._id} value={coordinator._id}>
+                    {coordinator.name} - {coordinator.phone}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">التاريخ</label>
-            <input
-              type="date"
-              value={form.date}
-              onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            />
+          <div className="grid grid-cols-2 gap-4 sm:col-span-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">التاريخ</label>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm((p) => ({ ...p, date: e.target.value }))}
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                عدد الطلبات
+              </label>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={0}
+                value={form.tripsCount}
+                onChange={(e) => setForm((p) => ({ ...p, tripsCount: e.target.value }))}
+                placeholder="ادخل عدد الطلبات"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              />
+            </div>
           </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              عدد الطلبات
-            </label>
-            <input
-              type="number"
-              inputMode="numeric"
-              min={0}
-              value={form.tripsCount}
-              onChange={(e) => setForm((p) => ({ ...p, tripsCount: e.target.value }))}
-              placeholder="ادخل عدد الطلبات"
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            />
-          </div>
-
-          <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              المبلغ اليومي (الإجمالي)
-            </label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              value={form.totalAmount}
-              onChange={(e) => setForm((p) => ({ ...p, totalAmount: e.target.value }))}
-              placeholder="ادخل المبلغ الإجمالي اليومي"
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            />
-          </div>
-          <div className="space-y-2 sm:col-span-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              قيمة التعويض (اختياري)
-            </label>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              value={form.discount}
-              onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
-              placeholder="أدخل قيمة التعويض إن وجدت"
-              className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-            />
+          <div className="grid grid-cols-2 gap-4 sm:col-span-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                المبلغ اليومي (الإجمالي)
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={form.totalAmount}
+                onChange={(e) => setForm((p) => ({ ...p, totalAmount: e.target.value }))}
+                placeholder="ادخل المبلغ الإجمالي اليومي"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                قيمة التعويض (اختياري)
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={form.discount}
+                onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
+                placeholder="أدخل قيمة التعويض إن وجدت"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              />
+            </div>
           </div>
         </div>
         <div className="mt-3 rounded-lg bg-blue-50 p-3 text-sm text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
@@ -348,6 +331,51 @@ export default function TripsPage() {
       </form>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40 md:grid-cols-[1fr_auto_auto] md:items-end">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              فلتر التاريخ (اختياري)
+            </label>
+            <input
+              type="date"
+              value={dateFilterValue}
+              onChange={(e) => setDateFilterValue(e.target.value)}
+              disabled={!dateFilterEnabled}
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={dateFilterEnabled}
+              onChange={(e) => setDateFilterEnabled(e.target.checked)}
+            />
+            <span>تفعيل الفلتر</span>
+          </label>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentPage(1);
+                void loadAll(1);
+              }}
+              className="rounded bg-blue-600 px-3 py-2 text-sm text-white"
+            >
+              تطبيق الفلتر
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setDateFilterEnabled(false);
+                setCurrentPage(1);
+                void loadAll(1);
+              }}
+              className="rounded bg-slate-200 px-3 py-2 text-sm dark:bg-slate-700"
+            >
+              عرض الكل
+            </button>
+          </div>
+        </div>
         <div className="space-y-2 md:hidden">
           {trips.map((trip) => (
             <div
@@ -356,7 +384,7 @@ export default function TripsPage() {
             >
               <p className="font-semibold">{trip.driverId?.name ?? "-"}</p>
               <p className="text-sm">المنسق: {trip.coordinatorId?.name ?? "-"}</p>
-              <p className="text-sm">{new Date(trip.date).toLocaleDateString("ar-SA")}</p>
+              <p className="text-sm">{formatGregorianDateAr(trip.date)}</p>
               <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
                 <p>الطلبات: {trip.tripsCount}</p>
                 <p>المبلغ: {formatCurrency(trip.totalAmount)}</p>
@@ -370,7 +398,7 @@ export default function TripsPage() {
                     setForm({
                       driverId: trip.driverId?._id,
                       coordinatorId: trip.coordinatorId?._id,
-                      date: new Date(trip.date).toISOString().slice(0, 10),
+                      date: calendarDateKeyFromUtcDate(new Date(trip.date)),
                       tripsCount: String(trip.tripsCount),
                       totalAmount: String(trip.totalAmount),
                       discount: String(trip.discount ?? 0),
@@ -415,7 +443,7 @@ export default function TripsPage() {
                 >
                   <td className="rounded-r-xl px-4 py-3">{trip.driverId?.name ?? "-"}</td>
                   <td className="px-4 py-3">{trip.coordinatorId?.name ?? "-"}</td>
-                  <td className="px-4 py-3">{new Date(trip.date).toLocaleDateString("ar-SA")}</td>
+                  <td className="px-4 py-3">{formatGregorianDateAr(trip.date)}</td>
                   <td className="px-4 py-3">{trip.tripsCount}</td>
                   <td className="px-4 py-3">{formatCurrency(trip.totalAmount)}</td>
                   <td className="px-4 py-3">{formatCurrency(trip.discount ?? 0)}</td>
@@ -428,7 +456,7 @@ export default function TripsPage() {
                           setForm({
                             driverId: trip.driverId?._id,
                             coordinatorId: trip.coordinatorId?._id,
-                            date: new Date(trip.date).toISOString().slice(0, 10),
+                            date: calendarDateKeyFromUtcDate(new Date(trip.date)),
                             tripsCount: String(trip.tripsCount),
                             totalAmount: String(trip.totalAmount),
                             discount: String(trip.discount ?? 0),

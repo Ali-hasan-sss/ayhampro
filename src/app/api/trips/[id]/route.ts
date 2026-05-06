@@ -2,16 +2,21 @@ import { calculateCommission } from "@/lib/commission";
 import { connectToDatabase } from "@/lib/db";
 import { getOrCreateSettings } from "@/lib/settings";
 import { hasDuplicateTripForDriverCoordinatorDay } from "@/lib/trip-duplicate";
+import { parseDateOnlyParts, utcMidnightFromDateOnly } from "@/lib/trip-calendar-date";
 import { Trip } from "@/models/Trip";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
 const objectIdSchema = z.string().regex(/^[a-fA-F0-9]{24}$/, "Invalid ObjectId");
 
+const dateOnlySchema = z
+  .string()
+  .refine((s) => parseDateOnlyParts(s) !== null, "تاريخ غير صالح");
+
 const schema = z.object({
   driverId: objectIdSchema,
   coordinatorId: objectIdSchema,
-  date: z.string(),
+  date: dateOnlySchema,
   tripsCount: z.number().int().min(0),
   totalAmount: z.number().min(0),
   discount: z.number().min(0).optional().default(0),
@@ -55,7 +60,7 @@ export async function PUT(
 
   const updated = await Trip.findByIdAndUpdate(
     id,
-    { ...parsed.data, date: new Date(parsed.data.date), commission },
+    { ...parsed.data, date: utcMidnightFromDateOnly(parsed.data.date), commission },
     { new: true },
   );
   return NextResponse.json(updated);
