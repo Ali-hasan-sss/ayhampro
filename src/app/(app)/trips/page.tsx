@@ -23,6 +23,9 @@ export default function TripsPage() {
   const pageSize = 50;
   const [dateFilterEnabled, setDateFilterEnabled] = useState(false);
   const [dateFilterValue, setDateFilterValue] = useState(getTodayInputValue());
+  const [tableDriverSearchInput, setTableDriverSearchInput] = useState("");
+  const [tableDriverSearch, setTableDriverSearch] = useState("");
+  const [searchingTrips, setSearchingTrips] = useState(false);
   const [driverQuery, setDriverQuery] = useState("");
   const [coordinatorQuery, setCoordinatorQuery] = useState("");
   const [driverOpen, setDriverOpen] = useState(false);
@@ -54,14 +57,18 @@ export default function TripsPage() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const loadAll = async (targetPage = currentPage) => {
+  const loadAll = async (targetPage = currentPage, driverSearchOverride?: string) => {
     const dayQs =
       dateFilterEnabled && dateFilterValue
         ? `&from=${encodeURIComponent(dateFilterValue)}&to=${encodeURIComponent(dateFilterValue)}`
         : "";
+    const effectiveDriverSearch = (driverSearchOverride ?? tableDriverSearch).trim();
+    const driverNameQs = effectiveDriverSearch
+      ? `&driverName=${encodeURIComponent(effectiveDriverSearch)}`
+      : "";
     const [driversRes, tripsRes, settingsRes] = await Promise.all([
       fetch("/api/drivers"),
-      fetch(`/api/trips?page=${targetPage}&limit=${pageSize}${dayQs}`),
+      fetch(`/api/trips?page=${targetPage}&limit=${pageSize}${dayQs}${driverNameQs}`),
       fetch("/api/settings"),
     ]);
     if (!driversRes.ok || !tripsRes.ok || !settingsRes.ok) {
@@ -95,6 +102,18 @@ export default function TripsPage() {
     void loadAll(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial load only
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchingTrips(true);
+      setTableDriverSearch(tableDriverSearchInput);
+      setCurrentPage(1);
+      void loadAll(1, tableDriverSearchInput).finally(() => setSearchingTrips(false));
+    }, 450);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce search by input text
+  }, [tableDriverSearchInput]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -337,20 +356,6 @@ export default function TripsPage() {
           <div className="grid grid-cols-2 gap-4 sm:col-span-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                المبلغ اليومي (الإجمالي)
-              </label>
-              <input
-                type="number"
-                inputMode="decimal"
-                min={0}
-                value={form.totalAmount}
-                onChange={(e) => setForm((p) => ({ ...p, totalAmount: e.target.value }))}
-                placeholder="ادخل المبلغ الإجمالي اليومي"
-                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
                 قيمة التعويض (اختياري)
               </label>
               <input
@@ -360,6 +365,20 @@ export default function TripsPage() {
                 value={form.discount}
                 onChange={(e) => setForm((p) => ({ ...p, discount: e.target.value }))}
                 placeholder="أدخل قيمة التعويض إن وجدت"
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                المبلغ اليومي (الإجمالي)
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={form.totalAmount}
+                onChange={(e) => setForm((p) => ({ ...p, totalAmount: e.target.value }))}
+                placeholder="ادخل المبلغ الإجمالي اليومي"
                 className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/60"
               />
             </div>
@@ -388,7 +407,28 @@ export default function TripsPage() {
       </form>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="mb-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40 md:grid-cols-[1fr_auto_auto] md:items-end">
+        <div className="mb-4 space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+            <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-200">
+              بحث باسم السائق (تلقائي بعد التوقف عن الكتابة)
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={tableDriverSearchInput}
+                onChange={(e) => setTableDriverSearchInput(e.target.value)}
+                placeholder="اكتب اسم السائق للبحث"
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900"
+              />
+              {searchingTrips ? (
+                <span className="whitespace-nowrap text-sm text-blue-600 dark:text-blue-300">
+                  جاري البحث...
+                </span>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40 md:grid-cols-[1fr_auto_auto] md:items-end">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
               فلتر التاريخ (اختياري)
@@ -432,6 +472,7 @@ export default function TripsPage() {
               عرض الكل
             </button>
           </div>
+        </div>
         </div>
         <div className="space-y-2 md:hidden">
           {trips.map((trip) => (

@@ -31,11 +31,14 @@ type ReportData = {
 };
 
 export default function ReportsPage() {
+  const pageSize = 25;
   const [period, setPeriod] = useState("daily");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [driverSearch, setDriverSearch] = useState("");
   const [coordinatorSearch, setCoordinatorSearch] = useState("");
+  const [driverPage, setDriverPage] = useState(1);
+  const [coordinatorPage, setCoordinatorPage] = useState(1);
   const [report, setReport] = useState<ReportData>({
     totals: { totalTrips: 0, totalRevenue: 0, totalDiscount: 0, totalCommission: 0 },
     byDriver: [],
@@ -94,6 +97,13 @@ export default function ReportsPage() {
   );
   const filteredCoordinators = report.byCoordinator.filter((row) =>
     row.coordinatorName.toLowerCase().includes(coordinatorSearch.toLowerCase()),
+  );
+  const driverTotalPages = Math.max(1, Math.ceil(filteredDrivers.length / pageSize));
+  const coordinatorTotalPages = Math.max(1, Math.ceil(filteredCoordinators.length / pageSize));
+  const paginatedDrivers = filteredDrivers.slice((driverPage - 1) * pageSize, driverPage * pageSize);
+  const paginatedCoordinators = filteredCoordinators.slice(
+    (coordinatorPage - 1) * pageSize,
+    coordinatorPage * pageSize,
   );
   const todayLabel = toDateInputValue(new Date());
   const monthlyBounds = getCurrentMonthBounds();
@@ -227,6 +237,26 @@ export default function ReportsPage() {
     XLSX.writeFile(workbook, `reports-${period}-${fileDate}.xlsx`);
   };
 
+  useEffect(() => {
+    setDriverPage(1);
+  }, [driverSearch, period, from, to, report.byDriver.length]);
+
+  useEffect(() => {
+    setCoordinatorPage(1);
+  }, [coordinatorSearch, period, from, to, report.byCoordinator.length]);
+
+  useEffect(() => {
+    if (driverPage > driverTotalPages) {
+      setDriverPage(driverTotalPages);
+    }
+  }, [driverPage, driverTotalPages]);
+
+  useEffect(() => {
+    if (coordinatorPage > coordinatorTotalPages) {
+      setCoordinatorPage(coordinatorTotalPages);
+    }
+  }, [coordinatorPage, coordinatorTotalPages]);
+
   return (
     <section className="space-y-5">
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-slate-50 to-white p-4 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-900">
@@ -303,7 +333,7 @@ export default function ReportsPage() {
           />
         </div>
         <div className="space-y-2 md:hidden">
-          {filteredDrivers.map((row) => (
+          {paginatedDrivers.map((row) => (
             <div
               key={row.driverId}
               className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50"
@@ -338,7 +368,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {filteredDrivers.map((row) => (
+              {paginatedDrivers.map((row) => (
                 <tr key={row.driverName} className="border-b border-slate-100 dark:border-slate-800">
                   <td className="p-2">{row.driverName}</td>
                   <td className="p-2">{row.tripsCount}</td>
@@ -358,6 +388,29 @@ export default function ReportsPage() {
             </tbody>
           </table>
         </div>
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-xs text-slate-500">
+            صفحة {driverPage} من {driverTotalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setDriverPage((p) => Math.max(1, p - 1))}
+              disabled={driverPage <= 1}
+              className="rounded bg-slate-200 px-3 py-1 text-sm disabled:opacity-40 dark:bg-slate-700"
+            >
+              السابق
+            </button>
+            <button
+              type="button"
+              onClick={() => setDriverPage((p) => Math.min(driverTotalPages, p + 1))}
+              disabled={driverPage >= driverTotalPages}
+              className="rounded bg-slate-200 px-3 py-1 text-sm disabled:opacity-40 dark:bg-slate-700"
+            >
+              التالي
+            </button>
+          </div>
+        </div>
       </div>
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -370,7 +423,7 @@ export default function ReportsPage() {
           />
         </div>
         <div className="space-y-2 md:hidden">
-          {filteredCoordinators.map((row) => (
+          {paginatedCoordinators.map((row) => (
             <div
               key={row.coordinatorName}
               className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50"
@@ -412,6 +465,29 @@ export default function ReportsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+        <div className="mt-3 flex items-center justify-between">
+          <p className="text-xs text-slate-500">
+            صفحة {coordinatorPage} من {coordinatorTotalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setCoordinatorPage((p) => Math.max(1, p - 1))}
+              disabled={coordinatorPage <= 1}
+              className="rounded bg-slate-200 px-3 py-1 text-sm disabled:opacity-40 dark:bg-slate-700"
+            >
+              السابق
+            </button>
+            <button
+              type="button"
+              onClick={() => setCoordinatorPage((p) => Math.min(coordinatorTotalPages, p + 1))}
+              disabled={coordinatorPage >= coordinatorTotalPages}
+              className="rounded bg-slate-200 px-3 py-1 text-sm disabled:opacity-40 dark:bg-slate-700"
+            >
+              التالي
+            </button>
+          </div>
         </div>
       </div>
     </section>

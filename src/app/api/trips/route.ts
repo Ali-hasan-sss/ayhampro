@@ -8,6 +8,7 @@ import {
   utcMidnightFromDateOnly,
 } from "@/lib/trip-calendar-date";
 import "@/models/Driver";
+import { Driver } from "@/models/Driver";
 import { Trip } from "@/models/Trip";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
   const from = searchParams.get("from");
   const to = searchParams.get("to");
   const driverId = searchParams.get("driverId");
+  const driverName = searchParams.get("driverName")?.trim();
   const coordinatorId = searchParams.get("coordinatorId");
   const page = Math.max(1, Number(searchParams.get("page") ?? 1));
   const limit = Math.min(100, Math.max(1, Number(searchParams.get("limit") ?? 20)));
@@ -41,6 +43,21 @@ export async function GET(request: Request) {
   const query: Record<string, unknown> = {};
   if (driverId) query.driverId = driverId;
   if (coordinatorId) query.coordinatorId = coordinatorId;
+  if (!driverId && driverName) {
+    const matchedDrivers = await Driver.find({
+      role: "driver",
+      name: { $regex: driverName, $options: "i" },
+    })
+      .select("_id")
+      .lean();
+    if (matchedDrivers.length === 0) {
+      return NextResponse.json({
+        items: [],
+        pagination: { page: 1, limit, total: 0, totalPages: 1 },
+      });
+    }
+    query.driverId = { $in: matchedDrivers.map((d) => d._id) };
+  }
   if (from || to) {
     try {
       const startBound = from ? getUtcDayBoundsFromTripDateInput(from).start : undefined;
