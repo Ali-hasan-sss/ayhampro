@@ -97,12 +97,8 @@ export default function TripsPage() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMessage("");
-    if (!form.driverId || !form.coordinatorId) {
-      setErrorMessage("يجب اختيار السائق والمنسق قبل الحفظ.");
-      return;
-    }
-    if (!form.date) {
-      setErrorMessage("يرجى اختيار التاريخ.");
+    if (!form.driverId) {
+      setErrorMessage("يجب اختيار السائق قبل الحفظ.");
       return;
     }
     if (Number(form.tripsCount || 0) <= 0) {

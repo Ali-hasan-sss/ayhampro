@@ -1,6 +1,5 @@
 import { calculateCommission } from "@/lib/commission";
 import { connectToDatabase } from "@/lib/db";
-import { hasDuplicateTripForDriverCoordinatorDay } from "@/lib/trip-duplicate";
 import { getOrCreateSettings } from "@/lib/settings";
 import {
   getUtcDayBoundsFromTripDateInput,
@@ -75,21 +74,6 @@ export async function POST(request: Request) {
   const parsed = schema.safeParse(await request.json());
   if (!parsed.success) {
     return NextResponse.json({ message: "بيانات غير صحيحة" }, { status: 400 });
-  }
-
-  const duplicate = await hasDuplicateTripForDriverCoordinatorDay({
-    driverId: parsed.data.driverId,
-    coordinatorId: parsed.data.coordinatorId,
-    dateInput: parsed.data.date,
-  });
-  if (duplicate) {
-    return NextResponse.json(
-      {
-        message:
-          "يوجد بالفعل طلب لنفس السائق في هذا اليوم مع نفس المنسق، لا يمكن إضافة طلب مكرر.",
-      },
-      { status: 409 },
-    );
   }
 
   const settings = await getOrCreateSettings();
