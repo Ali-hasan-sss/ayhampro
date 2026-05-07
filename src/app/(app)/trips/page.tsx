@@ -86,16 +86,16 @@ export default function TripsPage() {
       commissionType: settingsData.commissionType,
       commissionValue: settingsData.commissionValue,
     });
-    if (driversData.length > 0) {
-      const firstDriver = driversData.find((d: Driver) => d.role === "driver")?._id ?? "";
-      const firstCoordinator =
-        driversData.find((d: Driver) => d.role === "coordinator")?._id ?? "";
-      // Important: use latest state to avoid stale-closure overwriting user's current selection.
-      setForm((p) => {
-        if (p.driverId || p.coordinatorId) return p;
-        return { ...p, driverId: firstDriver, coordinatorId: firstCoordinator };
-      });
-    }
+   if (driversData.length > 0) {
+  const lastCoordinator =
+    driversData.filter((d: Driver) => d.role === "coordinator").at(-1)?._id ?? "";
+
+  setForm((p) => ({
+    ...p,
+    coordinatorId: p.coordinatorId || lastCoordinator,
+    date: p.date || new Date().toISOString().split("T")[0],
+  }));
+}
   };
 
   useEffect(() => {
@@ -143,7 +143,7 @@ export default function TripsPage() {
       body: JSON.stringify({
         ...form,
         tripsCount: Number(form.tripsCount || 0),
-        totalAmount: Number(form.totalAmount || 0),
+        totalAmount: Number(form.totalAmount || 0) * 1000,        
         discount: Number(form.discount || 0),
       }),
     });
@@ -155,14 +155,24 @@ export default function TripsPage() {
       return;
     }
     setEditingId(null);
+
     setForm((p) => ({
-      ...p,
-      tripsCount: "",
-      totalAmount: "",
-      discount: "",
-    }));
-    setToast({ type: "success", message: editingId ? "تم تعديل السجل بنجاح" : "تمت إضافة السجل بنجاح" });
-    loadAll(1);
+     ...p,
+     driverId: "",
+     tripsCount: "",
+     totalAmount: "",
+     discount: "",
+   }));
+
+    setToast({
+     type: "success",
+     message: editingId
+      ? "تم تعديل السجل بنجاح"
+      : "تمت إضافة السجل بنجاح",
+    });
+
+   loadAll(1);
+   setDriverQuery("");
   };
 
   const remove = async (id: string) => {
@@ -216,7 +226,7 @@ export default function TripsPage() {
 
   const calculatedCommissionBeforeDiscount =
     settings.commissionType === "percentage"
-      ? (Number(form.totalAmount || 0) * Number(settings.commissionValue)) / 100
+      ? ((Number(form.totalAmount || 0)*1000) * Number(settings.commissionValue)) / 100
       : Number(form.tripsCount || 0) * Number(settings.commissionValue);
   const calculatedCommission = Math.max(
     0,
