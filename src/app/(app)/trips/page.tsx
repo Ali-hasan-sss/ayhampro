@@ -26,6 +26,8 @@ export default function TripsPage() {
   const [tableDriverSearchInput, setTableDriverSearchInput] = useState("");
   const [tableDriverSearch, setTableDriverSearch] = useState("");
   const [searchingTrips, setSearchingTrips] = useState(false);
+  const [coordinatorFilterEnabled, setCoordinatorFilterEnabled] = useState(false);
+  const [coordinatorFilterId, setCoordinatorFilterId] = useState("");
   const [driverQuery, setDriverQuery] = useState("");
   const [coordinatorQuery, setCoordinatorQuery] = useState("");
   const [driverOpen, setDriverOpen] = useState(false);
@@ -66,9 +68,12 @@ export default function TripsPage() {
     const driverNameQs = effectiveDriverSearch
       ? `&driverName=${encodeURIComponent(effectiveDriverSearch)}`
       : "";
+    const coordinatorQs = coordinatorFilterEnabled && coordinatorFilterId
+      ? `&coordinatorId=${encodeURIComponent(coordinatorFilterId)}`
+      : "";
     const [driversRes, tripsRes, settingsRes] = await Promise.all([
       fetch("/api/drivers"),
-      fetch(`/api/trips?page=${targetPage}&limit=${pageSize}${dayQs}${driverNameQs}`),
+      fetch(`/api/trips?page=${targetPage}&limit=${pageSize}${dayQs}${driverNameQs}${coordinatorQs}`),
       fetch("/api/settings"),
     ]);
     if (!driversRes.ok || !tripsRes.ok || !settingsRes.ok) {
@@ -114,6 +119,12 @@ export default function TripsPage() {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- debounce search by input text
   }, [tableDriverSearchInput]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    void loadAll(1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- coordinator filter change
+  }, [coordinatorFilterEnabled, coordinatorFilterId]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -438,51 +449,79 @@ export default function TripsPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40 md:grid-cols-[1fr_auto_auto] md:items-end">
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
-              فلتر التاريخ (اختياري)
-            </label>
-            <input
-              type="date"
-              value={dateFilterValue}
-              onChange={(e) => setDateFilterValue(e.target.value)}
-              disabled={!dateFilterEnabled}
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900"
-            />
+          <div className="grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/40 md:grid-cols-[1fr_1fr_auto_auto] md:items-end">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                فلتر التاريخ (اختياري)
+              </label>
+              <input
+                type="date"
+                value={dateFilterValue}
+                onChange={(e) => setDateFilterValue(e.target.value)}
+                disabled={!dateFilterEnabled}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900"
+              />
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={dateFilterEnabled}
+                  onChange={(e) => setDateFilterEnabled(e.target.checked)}
+                />
+                <span>تفعيل فلتر التاريخ</span>
+              </label>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                فلتر المنسق (اختياري)
+              </label>
+              <select
+                value={coordinatorFilterId}
+                onChange={(e) => setCoordinatorFilterId(e.target.value)}
+                disabled={!coordinatorFilterEnabled}
+                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900"
+              >
+                <option value="">اختر المنسق</option>
+                {drivers.filter(d => d.role === "coordinator").map((c) => (
+                  <option key={c._id} value={c._id}>{c.name}</option>
+                ))}
+              </select>
+              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={coordinatorFilterEnabled}
+                  onChange={(e) => setCoordinatorFilterEnabled(e.target.checked)}
+                />
+                <span>تفعيل فلتر المنسق</span>
+              </label>
+            </div>
+
+            <div className="flex gap-2 md:col-span-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentPage(1);
+                  void loadAll(1);
+                }}
+                className="rounded bg-blue-600 px-3 py-2 text-sm text-white"
+              >
+                تطبيق الفلاتر
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilterEnabled(false);
+                  setCoordinatorFilterEnabled(false);
+                  setCoordinatorFilterId("");
+                  setCurrentPage(1);
+                  void loadAll(1);
+                }}
+                className="rounded bg-slate-200 px-3 py-2 text-sm dark:bg-slate-700"
+              >
+                عرض الكل
+              </button>
+            </div>
           </div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-            <input
-              type="checkbox"
-              checked={dateFilterEnabled}
-              onChange={(e) => setDateFilterEnabled(e.target.checked)}
-            />
-            <span>تفعيل الفلتر</span>
-          </label>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setCurrentPage(1);
-                void loadAll(1);
-              }}
-              className="rounded bg-blue-600 px-3 py-2 text-sm text-white"
-            >
-              تطبيق الفلتر
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDateFilterEnabled(false);
-                setCurrentPage(1);
-                void loadAll(1);
-              }}
-              className="rounded bg-slate-200 px-3 py-2 text-sm dark:bg-slate-700"
-            >
-              عرض الكل
-            </button>
-          </div>
-        </div>
         </div>
         <div className="space-y-2 md:hidden">
           {trips.map((trip) => (
