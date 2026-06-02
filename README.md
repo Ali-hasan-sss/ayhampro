@@ -29,6 +29,8 @@ cp .env.example .env.local
 
 - `MONGODB_URI`
 - `JWT_SECRET`
+- `OPENAI_API_KEY` (لصفحة الإدخال الذكي من واتساب)
+- `OPENAI_MODEL` (اختياري، الافتراضي: `gpt-4o-mini`)
 
 3. ثبت الحزم:
 

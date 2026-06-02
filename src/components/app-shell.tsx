@@ -7,6 +7,7 @@ const links = [
   { href: "/dashboard", label: "لوحة التحكم" },
   { href: "/drivers", label: "الموظفين" },
   { href: "/trips", label: "الطلبات اليومية" },
+  { href: "/smart-entry", label: "إدخال ذكي" },
   { href: "/reports", label: "التقارير" },
   { href: "/settings", label: "الإعدادات" },
 ];
@@ -50,7 +51,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </header>
       <main className="flex-1">{children}</main>
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.4rem)] pt-2 shadow-[0_-8px_20px_rgba(15,23,42,0.08)] backdrop-blur md:hidden dark:border-slate-800 dark:bg-slate-900/95">
-        <div className="mx-auto grid max-w-6xl grid-cols-5 gap-1">
+        <div className="mx-auto grid max-w-6xl grid-cols-3 gap-1 sm:grid-cols-6">
           {links.map((link) => (
             <Link
               key={link.href}
