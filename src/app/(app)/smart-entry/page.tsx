@@ -1,11 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { SmartEntryReviewRows } from "@/components/smart-entry-review-rows";
+import { mergeSmartEntryRows } from "@/lib/smart-entry-merge";
 import type { Driver } from "@/types";
 import type { SmartEntryImportResult, SmartEntryParseResult, SmartEntryRow } from "@/types/smart-entry";
-import { fareThousandsUnitToStoredAmount } from "@/lib/fare-normalize";
-import { mergeSmartEntryRows } from "@/lib/smart-entry-merge";
-import { formatCurrency } from "@/lib/format";
 
 function getTodayInputValue() {
   const now = new Date();
@@ -15,12 +14,16 @@ function getTodayInputValue() {
   return `${y}-${m}-${d}`;
 }
 
-function fareToDisplayAmount(totalFare: number) {
-  return fareThousandsUnitToStoredAmount(totalFare);
+function withDefaultDiscount(rows: SmartEntryRow[]): SmartEntryRow[] {
+  return rows.map((row) => ({ ...row, discount: row.discount ?? 0 }));
 }
 
 export default function SmartEntryPage() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [settings, setSettings] = useState({
+    commissionType: "percentage" as "percentage" | "fixed",
+    commissionValue: 0,
+  });
   const [file, setFile] = useState<File | null>(null);
   const [parseResult, setParseResult] = useState<SmartEntryParseResult | null>(null);
   const [rows, setRows] = useState<SmartEntryRow[]>([]);
@@ -42,19 +45,25 @@ export default function SmartEntryPage() {
 
   useEffect(() => {
     void (async () => {
-      const res = await fetch("/api/drivers");
-      if (!res.ok) return;
-      const data: Driver[] = await res.json();
-      setDrivers(data);
-      const lastCoordinator = data.filter((d) => d.role === "coordinator").at(-1)?._id ?? "";
-      setCoordinatorId((prev) => prev || lastCoordinator);
+      const [driversRes, settingsRes] = await Promise.all([
+        fetch("/api/drivers"),
+        fetch("/api/settings"),
+      ]);
+      if (driversRes.ok) {
+        const data: Driver[] = await driversRes.json();
+        setDrivers(data);
+        const lastCoordinator = data.filter((d) => d.role === "coordinator").at(-1)?._id ?? "";
+        setCoordinatorId((prev) => prev || lastCoordinator);
+      }
+      if (settingsRes.ok) {
+        const settingsData = await settingsRes.json();
+        setSettings({
+          commissionType: settingsData.commissionType,
+          commissionValue: settingsData.commissionValue,
+        });
+      }
     })();
   }, []);
-
-  const driverOptions = useMemo(
-    () => drivers.filter((d) => d.role === "driver"),
-    [drivers],
-  );
 
   const coordinators = useMemo(
     () =>
@@ -104,29 +113,48 @@ export default function SmartEntryPage() {
 
     const result = data as SmartEntryParseResult;
     setParseResult(result);
-    setRows(result.rows);
+    setRows(withDefaultDiscount(result.rows));
     setToast({
       type: "success",
       message: `تم استخراج ${result.rawInvoiceCount} فاتورة → ${result.rows.length} سائق`,
     });
   };
 
-  const updateRowDriver = (index: number, driverId: string) => {
-    const driver = driverOptions.find((d) => d._id === driverId);
+  const handleDriverCreated = (driver: Driver) => {
+    setDrivers((prev) => {
+      if (prev.some((d) => d._id === driver._id)) return prev;
+      return [driver, ...prev];
+    });
+    setToast({ type: "success", message: `تمت إضافة السائق «${driver.name}» وربطه` });
+  };
+
+  const handleSelectDriver = (index: number, driver: Driver | null) => {
     setRows((prev) =>
       mergeSmartEntryRows(
-        prev.map((row, i) =>
-          i === index
-            ? {
-                ...row,
-                driverId: driverId || null,
-                matchedDriverName: driver?.name ?? null,
-                matchConfidence: driver ? 1 : 0,
-                needsReview: !driverId,
-              }
-            : row,
-        ),
+        prev.map((row, i) => {
+          if (i !== index) return row;
+          if (!driver) {
+            return {
+              ...row,
+              driverId: null,
+              matchedDriverName: null,
+              needsReview: true,
+            };
+          }
+          return {
+            ...row,
+            driverId: driver._id,
+            matchedDriverName: driver.name,
+            needsReview: false,
+          };
+        }),
       ),
+    );
+  };
+
+  const handleChangeRow = (index: number, patch: Partial<SmartEntryRow>) => {
+    setRows((prev) =>
+      prev.map((row, i) => (i === index ? { ...row, ...patch } : row)),
     );
   };
 
@@ -154,8 +182,14 @@ export default function SmartEntryPage() {
     const missingDriver = rows.filter((r) => !r.driverId);
     if (missingDriver.length > 0) {
       setErrorMessage(
-        `يوجد ${missingDriver.length} سائق بدون ربط في النظام. راجع الأسماء أو أضفهم من صفحة الموظفين.`,
+        `يوجد ${missingDriver.length} سائق بدون ربط. ابحث عن السائق أو أضفه من القائمة مباشرة.`,
       );
+      return;
+    }
+
+    const invalid = rows.filter((r) => r.tripsCount < 1 || r.totalFare <= 0);
+    if (invalid.length > 0) {
+      setErrorMessage("تحقق من عدد الطلبات والمجموع لكل سائق (يجب أن يكونا أكبر من صفر).");
       return;
     }
 
@@ -173,6 +207,7 @@ export default function SmartEntryPage() {
           captainName: r.captainName,
           tripsCount: r.tripsCount,
           totalFare: r.totalFare,
+          discount: r.discount ?? 0,
         })),
       }),
     });
@@ -210,8 +245,8 @@ export default function SmartEntryPage() {
       <div className="rounded-2xl border border-slate-200 bg-gradient-to-b from-emerald-50/80 to-white p-5 shadow-sm dark:border-slate-800 dark:from-emerald-950/20 dark:to-slate-900">
         <h2 className="mb-1 text-lg font-semibold">إدخال ذكي من واتساب</h2>
         <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-          ارفع ملف تصدير دردشة واتساب (.txt) لاستخراج طلبات كل كابتن تلقائيًا عبر الذكاء
-          الاصطناعي، ثم راجع النتائج واختر المنسق والتاريخ وأدخل الكل دفعة واحدة.
+          ارفع ملف تصدير دردشة واتساب (.txt) لاستخراج طلبات كل كابتن تلقائيًا، ثم راجع
+          وعدّل البيانات واختر المنسق والتاريخ وأدخل الكل دفعة واحدة.
         </p>
 
         <form onSubmit={parseFile} className="space-y-3">
@@ -316,110 +351,15 @@ export default function SmartEntryPage() {
             </div>
           </div>
 
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-200 text-right dark:border-slate-700">
-                  <th className="p-2">اسم الكابتن (من الواتساب)</th>
-                  <th className="p-2">السائق في النظام</th>
-                  <th className="p-2">عدد الطلبات</th>
-                  <th className="p-2">المجموع (ألف ل.س)</th>
-                  <th className="p-2">المبلغ المحفوظ</th>
-                  <th className="p-2">حالة</th>
-                  <th className="p-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row, index) => (
-                  <tr
-                    key={`${row.captainName}-${index}`}
-                    className="border-b border-slate-100 dark:border-slate-800"
-                  >
-                    <td className="p-2">
-                      <p className="font-medium">{row.captainName}</p>
-                      {row.sourceNames && row.sourceNames.length > 1 ? (
-                        <p className="text-xs text-slate-500">
-                          دُمج: {row.sourceNames.join("، ")}
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="p-2">
-                      <select
-                        value={row.driverId ?? ""}
-                        onChange={(e) => updateRowDriver(index, e.target.value)}
-                        className="w-full min-w-[160px] rounded border border-slate-300 bg-white px-2 py-1 dark:border-slate-600 dark:bg-slate-800"
-                      >
-                        <option value="">— اختر سائقًا —</option>
-                        {driverOptions.map((d) => (
-                          <option key={d._id} value={d._id}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                      {row.matchedDriverName && row.matchConfidence > 0 ? (
-                        <p className="mt-1 text-xs text-slate-500">
-                          تطابق: {Math.round(row.matchConfidence * 100)}%
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="p-2">{row.tripsCount}</td>
-                    <td className="p-2">{row.totalFare}</td>
-                    <td className="p-2">{formatCurrency(fareToDisplayAmount(row.totalFare))}</td>
-                    <td className="p-2">
-                      {row.driverId && !row.needsReview ? (
-                        <span className="text-emerald-600">جاهز</span>
-                      ) : (
-                        <span className="text-amber-600">مراجعة</span>
-                      )}
-                    </td>
-                    <td className="p-2">
-                      <button
-                        type="button"
-                        onClick={() => removeRow(index)}
-                        className="text-xs text-red-600"
-                      >
-                        حذف
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="space-y-3 md:hidden">
-            {rows.map((row, index) => (
-              <div
-                key={`${row.captainName}-${index}`}
-                className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"
-              >
-                <p className="font-semibold">{row.captainName}</p>
-                <p className="text-sm">
-                  {row.tripsCount} طلب • مجموع {row.totalFare} (ألف) ={" "}
-                  {formatCurrency(fareToDisplayAmount(row.totalFare))}
-                </p>
-                <select
-                  value={row.driverId ?? ""}
-                  onChange={(e) => updateRowDriver(index, e.target.value)}
-                  className="mt-2 w-full rounded border border-slate-300 bg-white px-2 py-2 dark:border-slate-600 dark:bg-slate-800"
-                >
-                  <option value="">— اختر سائقًا —</option>
-                  {driverOptions.map((d) => (
-                    <option key={d._id} value={d._id}>
-                      {d.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => removeRow(index)}
-                  className="mt-2 text-xs text-red-600"
-                >
-                  استبعاد من القائمة
-                </button>
-              </div>
-            ))}
-          </div>
+          <SmartEntryReviewRows
+            rows={rows}
+            drivers={drivers}
+            settings={settings}
+            onChangeRow={handleChangeRow}
+            onSelectDriver={handleSelectDriver}
+            onDriverCreated={handleDriverCreated}
+            onRemoveRow={removeRow}
+          />
 
           {errorMessage ? <p className="mt-3 text-sm text-red-600">{errorMessage}</p> : null}
           {toast ? (

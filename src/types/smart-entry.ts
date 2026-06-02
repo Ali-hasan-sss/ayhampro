@@ -2,6 +2,7 @@ export type SmartEntryRow = {
   captainName: string;
   tripsCount: number;
   totalFare: number;
+  discount?: number;
   driverId: string | null;
   matchedDriverName: string | null;
   matchConfidence: number;

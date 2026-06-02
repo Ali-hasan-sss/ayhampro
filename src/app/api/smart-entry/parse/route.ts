@@ -3,10 +3,7 @@ import { matchDriverByName } from "@/lib/driver-name-match";
 import { mergeSmartEntryRows } from "@/lib/smart-entry-merge";
 import { connectToDatabase } from "@/lib/db";
 import { Driver } from "@/models/Driver";
-import {
-  aggregateInvoicesLocally,
-  extractWhatsAppInvoices,
-} from "@/lib/whatsapp-invoice-extract";
+import { extractWhatsAppInvoices } from "@/lib/whatsapp-invoice-extract";
 import type { SmartEntryParseResult, SmartEntryRow } from "@/types/smart-entry";
 import { NextResponse } from "next/server";
 
@@ -14,6 +11,16 @@ const MAX_FILE_CHARS = 1_200_000;
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.OPENAI_API_KEY?.trim()) {
+      return NextResponse.json(
+        {
+          message:
+            "مفتاح OpenAI غير مُعرّف. أضف OPENAI_API_KEY في ملف البيئة ثم أعد تشغيل السيرفر.",
+        },
+        { status: 503 },
+      );
+    }
+
     await connectToDatabase();
 
     const formData = await request.formData();
@@ -50,34 +57,28 @@ export async function POST(request: Request) {
       name: d.name as string,
     }));
 
-    let aggregated: { captainName: string; tripsCount: number; totalFare: number; sourceNames?: string[] }[];
     let removedDuplicates = 0;
     let notes = "";
-    let usedAi = false;
 
-    if (process.env.OPENAI_API_KEY?.trim()) {
-      try {
-        const aiResult = await aggregateInvoicesWithAi(
-          rawInvoices,
-          driverList.map((d) => d.name),
-        );
-        aggregated = aiResult.captains.map((c) => ({
-          captainName: c.canonicalName,
-          tripsCount: c.tripsCount,
-          totalFare: c.totalFare,
-          sourceNames: c.sourceNames,
-        }));
-        removedDuplicates = aiResult.removedDuplicates;
-        notes = aiResult.notes;
-        usedAi = true;
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "فشل تحليل الذكاء الاصطناعي";
-        return NextResponse.json({ message }, { status: 502 });
-      }
-    } else {
-      aggregated = aggregateInvoicesLocally(rawInvoices);
-      notes = "تم التجميع محليًا بدون OpenAI (أضف OPENAI_API_KEY لتحسين دمج الأسماء وإزالة التكرار).";
+    let aiResult;
+    try {
+      aiResult = await aggregateInvoicesWithAi(
+        rawInvoices,
+        driverList.map((d) => d.name),
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "فشل تحليل الذكاء الاصطناعي";
+      return NextResponse.json({ message }, { status: 502 });
     }
+
+    const aggregated = aiResult.captains.map((c) => ({
+      captainName: c.canonicalName,
+      tripsCount: c.tripsCount,
+      totalFare: c.totalFare,
+      sourceNames: c.sourceNames,
+    }));
+    removedDuplicates = aiResult.removedDuplicates;
+    notes = aiResult.notes;
 
     const rowsBeforeMerge: SmartEntryRow[] = aggregated.map((row) => {
       const match = matchDriverByName(row.captainName, driverList);
@@ -98,15 +99,15 @@ export async function POST(request: Request) {
     const mergedCaptainRows = rowsBeforeMerge.length - rows.length;
     if (mergedCaptainRows > 0) {
       notes = notes
-        ? `${notes} · دُمج ${mergedCaptainRows} صف مكرر لنفس السائق`
-        : `دُمج ${mergedCaptainRows} صف مكرر لنفس السائق`;
+        ? `${notes} · دُمج ${mergedCaptainRows} صف لنفس السائق في النظام`
+        : `دُمج ${mergedCaptainRows} صف لنفس السائق في النظام`;
     }
 
     const payload: SmartEntryParseResult = {
       rawInvoiceCount: rawInvoices.length,
       removedDuplicates,
       notes,
-      usedAi,
+      usedAi: true,
       rows,
     };
 
